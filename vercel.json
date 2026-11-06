@@ -1,0 +1,5 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "crons": [{ "path": "/api/autopay/run", "schedule": "30 3 * * *" }]
+}

@@ -1,0 +1,11 @@
+"use client";
+import { Repeat2, Check, Plus, ChevronRight, Download, CalendarDays } from 'lucide-react';
+import { Group, money, monthKey } from './model';
+import { GroupArt } from './illustrations';
+import { ModalKind } from './samiti-modal';
+export function ContributionSchedule({ groups, userId, open, download }: { groups: Group[]; userId: string; open: (m: ModalKind, id?: string) => void; download: (g: Group) => void }) {
+  return <><section className="autopay-intro"><span><Repeat2 size={25} /></span><div><h3>A little each month. On autopilot.</h3><p>Give your savings a rhythm with a monthly demo Auto Pay plan.</p></div></section><div className="contribution-cards">{groups.map(g => {
+    const paid = g.members.find(m => m.id === userId)?.paidMonth === monthKey(); const plan = g.autoPay?.[userId]; const active = plan?.status === 'active';
+    return <article className="contribution-card" key={g.id}><header><span className={`schedule-art ${g.color}`}><GroupArt type={g.icon} /></span><div><h3>{g.name}</h3><p>{money(g.monthly)} <span>NIM / month</span></p></div><button className="icon-button" aria-label={`Download reminder for ${g.name}`} onClick={() => download(g)}><Download size={18} /></button></header><div className="schedule-status"><span className={`payment-state ${paid ? 'paid' : ''}`}>{paid ? <Check size={13} /> : <CalendarDays size={13} />}{paid ? 'Contributed this month' : 'Monthly contribution due'}</span><span className={`autopay-state ${active ? 'enabled' : ''}`}><Repeat2 size={12} />{active ? 'Auto Pay on' : plan?.status === 'paused' ? 'Auto Pay paused' : 'Manual'}</span></div>{active && <p className="schedule-next">Next automatic demo contribution <strong>{new Date(plan.nextDate + 'T09:00:00+05:30').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</strong></p>}<div className="schedule-controls"><button className="button outline" disabled={paid} onClick={() => open('contribute', g.id)}>{paid ? <Check size={15} /> : <Plus size={15} />}{paid ? 'Paid this month' : 'Contribute'}</button><button className={`button ${active ? 'outline' : 'primary'}`} onClick={() => open('autopay', g.id)}><Repeat2 size={16} />{plan && plan.status !== 'cancelled' ? 'Manage Auto Pay' : 'Set up Auto Pay'}<ChevronRight size={14} /></button></div></article>;
+  })}</div></>;
+}

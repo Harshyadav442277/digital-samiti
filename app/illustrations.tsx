@@ -1,0 +1,18 @@
+export function SavingsPlant() {
+  return <svg viewBox="0 0 260 240" fill="none" role="img" aria-label="A flourishing savings plant with Nimiq coins">
+    <ellipse cx="135" cy="222" rx="85" ry="9" fill="#6951B7" opacity=".13" />
+    <path d="M137 156C133 110 135 71 150 36" stroke="#493473" strokeWidth="6" strokeLinecap="round" />
+    <path d="M138 114C97 112 81 86 91 64C121 62 141 84 138 114Z" fill="#B9D98D" /><path d="M139 89C148 53 176 40 197 53C194 80 165 95 139 89Z" fill="#92C276" />
+    <path d="M140 131C153 103 176 100 192 111C187 135 163 143 140 137Z" fill="#B9D98D" /><path d="M146 63C128 44 130 24 144 14C163 24 164 45 146 63Z" fill="#D3E9A9" />
+    <path d="M92 145H180L169 201C166 221 107 222 103 202L92 145Z" fill="#8160D9" /><ellipse cx="136" cy="145" rx="44" ry="12" fill="#9A7AE8" /><ellipse cx="136" cy="145" rx="34" ry="7" fill="#554088" /><path d="M137 141V151" stroke="#493473" strokeWidth="6" strokeLinecap="round" />
+    <path d="M117 179C119 183 124 183 126 179M146 179C148 183 153 183 155 179" stroke="#362252" strokeWidth="3" strokeLinecap="round" /><path d="M131 192C134 195 139 195 142 192" stroke="#362252" strokeWidth="3" strokeLinecap="round" /><ellipse cx="112" cy="188" rx="6" ry="3" fill="#BEA1F7" /><ellipse cx="157" cy="188" rx="6" ry="3" fill="#BEA1F7" />
+    <g transform="translate(28 165) rotate(-14)"><ellipse cx="27" cy="35" rx="27" ry="9" fill="#E7A13C" /><path d="M0 20H54V35H0Z" fill="#F2BD5C" /><ellipse cx="27" cy="20" rx="27" ry="9" fill="#FFDA89" /><path d="M0 10H54V23H0Z" fill="#EEB44E" /><ellipse cx="27" cy="10" rx="27" ry="9" fill="#FFE2A3" /><path d="M20 8L27 4L34 8V12L27 16L20 12V8Z" stroke="#C88E32" strokeWidth="2" /></g>
+    <g transform="translate(192 155) rotate(15)"><ellipse cx="12" cy="18" rx="22" ry="30" fill="#EFB34F" /><ellipse cx="7" cy="17" rx="21" ry="29" fill="#FFDC8A" /><path d="M-3 12L7 6L17 12V23L7 29L-3 23V12Z" stroke="#CE9637" strokeWidth="3" /></g>
+    <path d="M49 95V107M43 101H55M215 103V113M210 108H220M192 20V30M187 25H197" stroke="#A68BD5" strokeWidth="3" strokeLinecap="round" /><circle cx="66" cy="44" r="3" fill="#AB8ADC" /><circle cx="221" cy="60" r="3" fill="#AB8ADC" />
+  </svg>;
+}
+export function GroupArt({ type }: { type: string }) {
+  if (type === 'heart') return <svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><path d="M22 72L21 46C20 34 29 31 35 41L42 54L38 29C36 18 48 17 51 28L58 51L60 31C61 21 72 24 72 34L70 64C69 80 57 88 42 83Z" fill="#9CC864" /><path d="M34 58C40 47 51 49 54 56C57 47 69 47 72 56C77 66 63 75 54 81C43 73 30 67 34 58Z" fill="#F38D99" /><path d="M52 16V9M75 18L80 12M27 24L20 20" stroke="#5D8C35" strokeWidth="3" strokeLinecap="round" /></svg>;
+  if (type === 'graduation') return <svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><path d="M20 47L50 60L80 47V69C67 86 33 86 20 69V47Z" fill="#8D6DC2" /><path d="M7 39L50 20L93 39L50 59L7 39Z" fill="#62468D" /><path d="M50 39L78 48V74" stroke="#F2BC56" strokeWidth="4" strokeLinecap="round" /><path d="M74 75H82L85 88H71L74 75Z" fill="#F2BC56" /><ellipse cx="50" cy="77" rx="15" ry="4" fill="#654E98" opacity=".25" /><path d="M16 20V12M12 16H20M82 14V8M79 11H85" stroke="#D7A4A2" strokeWidth="3" strokeLinecap="round" /></svg>;
+  return <svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><path d="M48 12L57 38L84 45L59 56L51 84L39 58L12 51L38 40L48 12Z" fill="#58A9CB" /><path d="M70 65L76 77L89 80L77 85L73 97L67 86L55 83L67 77L70 65Z" fill="#F3C86A" /><path d="M24 17L26 24L33 26L26 29L23 36L20 29L13 27L20 24L24 17Z" fill="#B39ADE" /><path d="M41 47L47 41" stroke="#B5E1F0" strokeWidth="4" strokeLinecap="round" /></svg>;
+}

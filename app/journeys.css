@@ -1,0 +1,118 @@
+/* Shared journeys follow the existing cream, lilac and pastel palette. */
+.view-overview .page-content { justify-content: flex-start; }
+.view-overview .hero-grid { align-items: start; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.pending-payments { min-width: 0; padding: 21px; border-radius: 26px; background: #f8ecdd; border: 1px solid #eddfcf; }
+.pending-heading { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
+.pending-heading h2 { font-size: 17px; letter-spacing: -.45px; line-height: 1.3; }
+.pending-heading p { font-size: 11px; color: #766853; margin-top: 4px; }
+.pending-heading .calendar-icon { width: 37px; height: 37px; border-radius: 12px; background: #f1dfc3; }
+.pending-list { display: grid; gap: 7px; }
+.pending-row { width: 100%; min-height: 63px; display: flex; align-items: center; gap: 9px; padding: 10px; border: 1px solid #e9dfd2; border-radius: 14px; background: #fffaf4; text-align: left; }
+.pending-row:hover { background: #fff; }
+.payment-dot { width: 8px; height: 25px; border-radius: 6px; flex-shrink: 0; }
+.payment-dot.peach { background: #dfa89b; }.payment-dot.green { background: #9bb790; }.payment-dot.blue { background: #94b6d2; }.payment-dot.purple { background: #b195d4; }
+.payment-description { flex: 1; min-width: 0; }
+.payment-description strong { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.payment-description small { display: block; margin-top: 4px; font-size: 10px; color: #766853; line-height: 1.45; }
+.payment-amount { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.pending-loan { border: 1px solid #e9dfd2; border-radius: 14px; background: #fffaf4; overflow: hidden; }
+.pending-loan .pending-row { border: 0; }
+.remaining-payments { font-size: 11px; }
+.remaining-payments summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; cursor: pointer; padding: 9px 12px; color: #72558b; }
+.remaining-payments summary::-webkit-details-marker { display: none; }
+.remaining-payments[open] summary svg { transform: rotate(180deg); }
+.remaining-payments ol { margin: 0; padding: 0 13px; list-style: none; }
+.remaining-payments li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid #e9dfd2; }
+.remaining-payments p { margin: 8px 13px 13px; color: #766853; font-size: 10px; line-height: 1.6; }
+.payments-clear { display: grid; justify-items: center; gap: 10px; padding: 22px 8px; text-align: center; }
+.payments-clear p { font-size: 12px; line-height: 1.6; color: #766853; }
+.circle-progress .section-heading { flex-wrap: wrap; }
+.shared-goal { padding: 23px; }
+.shared-goal-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 19px; }
+.shared-goal-heading strong { font-size: 21px; }
+.shared-goal-heading small { font-size: 12px; font-weight: 500; }
+.shared-goal-heading p { color: #756b7d; margin-top: 5px; font-size: 12px; }
+.goal-milestones { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-top: 17px; }
+.goal-milestones > span { padding: 9px 5px; border-radius: 11px; background: var(--soft); font-size: 12px; text-align: center; }
+.goal-milestones > span.reached { background: #e7efdf; color: #4e6940; }
+.goal-milestones small { display: block; font-size: 10px; margin-top: 5px; line-height: 1.4; }
+.progress-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; }
+.progress-pair .panel { padding: 22px; min-width: 0; }
+.progress-pair h3 { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 1.4; margin-bottom: 13px; }
+.progress-pair p { color: #756b7d; font-size: 12px; line-height: 1.65; }
+.monthly-count { font: 750 23px/1.4 Manrope,sans-serif; display: block; margin-bottom: 5px; }
+.member-months { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.member-months > span { width: 33px; height: 33px; display: grid; place-items: center; border: 1px dashed #b6a7c4; border-radius: 50%; font-size: 10px; }
+.member-months .paid { background: #e7efdf; color: #4e6940; border: 1px solid #cadcbd; }
+.contribution-calendar summary,.forecast-assumptions summary { cursor: pointer; min-height: 44px; padding-block: 12px; color: #72558b; font-size: 11px; line-height: 1.6; }
+.month-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 5px; padding-block: 9px; text-align: center; }
+.month-grid > span { min-height: 29px; display: grid; place-items: center; border-radius: 8px; font-size: 11px; position: relative; }
+.month-grid > small { font-size: 10px; color: #756b7d; }
+.month-grid .due-day { background: #e6dcf2; color: #694d8d; font-weight: 700; }
+.month-grid .today { outline: 1px solid #9d83b9; outline-offset: -1px; }
+.month-grid .recorded-day:after { content: ''; position: absolute; bottom: 2px; width: 4px; height: 4px; background: #63834c; border-radius: 50%; }
+.contribution-calendar p,.forecast-assumptions p { font-size: 11px; }
+.goal-simulator { background: #f6f0fb; }
+.goal-simulator label { display: block; font-size: 11px; font-weight: 650; margin: 15px 0 7px; }
+.simulator-input { display: flex; align-items: center; gap: 12px; }
+.simulator-input input { width: 100%; min-width: 0; padding: 12px; border: 1px solid #d7c9e5; background: #fffdfd; color: var(--ink); border-radius: 12px; font-size: 17px; }
+.simulator-input button { min-height: 44px; }
+.goal-slider { width: 100%; min-height: 44px; accent-color: #9374b8; cursor: pointer; }
+.forecast-result { display: grid; gap: 6px; padding: 14px; background: #eee4f7; border-radius: 14px; }
+.forecast-result small { font-size: 11px; color: #6e557f; }
+.forecast-result strong { font: 750 23px/1.3 Manrope,sans-serif; overflow-wrap: anywhere; }
+.forecast-result span { font-size: 11px; color: #6e557f; line-height: 1.5; }
+.loan-journey { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; padding: 0; margin: 19px 0; }
+.loan-journey li { display: inline-flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 8px; font-size: 10px; background: #f1ece5; color: #71675d; }
+.loan-journey .complete { color: #507342; background: #edf3e6; }
+.loan-journey .current { color: #70538a; background: #eee4f7; font-weight: 700; }
+.loan-card { scroll-margin-top: 25px; }
+.loan-card:focus-visible { outline: 3px solid #b49acb; outline-offset: 4px; }
+.vote-review { background: #f3edf8; border: 1px solid #e0d3eb; border-radius: 15px; padding: 16px; margin-top: 15px; }
+.vote-review > strong { font-size: 14px; }
+.vote-review > p { font-size: 12px; color: #6e607a; margin-top: 8px; line-height: 1.6; }
+.vote-review .vote-error { color: #a5394c; }
+.loan-installments { background: #f7f3ec; border-radius: 12px; margin-top: 15px; }
+.contribution-receipt { text-align: center; }
+.receipt-celebration { color: #718c5b; width: 90px; height: 85px; margin: 10px auto; position: relative; display: grid; place-items: center; }
+.receipt-coin { position: absolute; top: -7px; right: 2px; width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; background: #f6d78d; color: #9d772f; animation: receipt-coin-arrive .65s ease-out both; }
+.receipt-paper { margin-top: 20px; padding: 22px; background: #fbf5e9; border: 1px solid #eadfcd; border-radius: 18px; }
+.receipt-mode { font-size: 11px; color: #75664f; }
+.receipt-amount { display: block; font: 750 34px/1.4 Manrope,sans-serif; margin: 8px 0 18px; }
+.receipt-amount small { font-size: 14px; }
+.receipt-paper dl { margin: 0; text-align: left; }
+.receipt-paper dl > div { display: flex; gap: 15px; justify-content: space-between; padding-block: 10px; border-top: 1px dashed #dfd1bc; font-size: 12px; }
+.receipt-paper dt { color: #75664f; }.receipt-paper dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.receipt-progress { text-align: left; margin-top: 15px; }
+.receipt-progress > span { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.receipt-progress .progress { margin-block: 10px; }.receipt-progress .progress > span { animation: receipt-progress-grow .6s ease-out both; transform-origin: left; }
+.receipt-progress small { font-size: 11px; color: #75664f; }
+.receipt-paper details { text-align: left; margin-top: 12px; }.receipt-paper summary { font-size: 11px; padding-block: 10px; cursor: pointer; }.receipt-paper code { display: block; font-size: 10px; overflow-wrap: anywhere; }
+.receipt-note { font-size: 11px; color: #756b7d; line-height: 1.6; margin: 14px 0; }
+@keyframes receipt-coin-arrive { from { opacity: 0; transform: translateY(-25px) rotate(-35deg); } to { opacity: 1; transform: translateY(0) rotate(0); } }
+@keyframes receipt-progress-grow { from { transform: scaleX(.85); } to { transform: scaleX(1); } }
+@media(max-width:1050px) { .view-overview .hero-grid { grid-template-columns: minmax(0,1fr); }.progress-pair { grid-template-columns: minmax(0,1fr); } }
+@media(max-width:720px) {
+  .pending-payments { padding: 16px; border-radius: 23px; }
+  .pending-heading h2 { font-size: 16px; }.pending-row { min-height: 65px; }
+  .view-overview .page-content { gap: 18px; }.view-overview .hero-grid { gap: 18px; }
+  .progress-pair .panel,.shared-goal { padding: 17px; }.goal-milestones { gap: 5px; }.goal-milestones small { font-size: 9px; }
+  .loan-card { scroll-margin-top: 15px; }.receipt-paper { padding: 16px; }
+  .progress-pair h3 { font-size: 15px; }.shared-goal-heading strong { font-size: 19px; }
+}
+@media(max-width:360px) {
+  .pending-payments { padding: 13px; }.pending-row { flex-wrap: wrap; gap: 7px; }.payment-description { flex-basis: calc(100% - 25px); }
+  .payment-amount { margin-left: 15px; }.pending-heading h2 { font-size: 15px; }.pending-heading p { font-size: 10px; }
+  .goal-milestones { grid-template-columns: repeat(2,minmax(0,1fr)); }.receipt-paper dl > div { flex-wrap: wrap; gap: 5px; }.receipt-paper dd { text-align: left; }
+}
+@media(prefers-reduced-motion:reduce) { .receipt-coin,.receipt-progress .progress > span { animation: none; } }
+
+@media(min-width:1051px) {
+  .view-overview .page-content { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); align-content: start; }
+  .view-overview .hero-grid { display: contents; }
+  .view-overview .balance-card { grid-column: 1; grid-row: 1; }
+  .view-overview .pending-payments { grid-column: 2; grid-row: 1 / 4; align-self: start; }
+  .view-overview .quick-actions { grid-column: 1; grid-row: 2; }
+  .view-overview .home-insights { grid-column: 1; grid-row: 3; }
+  .view-overview .loading-state,.view-overview .error-state { grid-column: 1 / -1; }
+}
