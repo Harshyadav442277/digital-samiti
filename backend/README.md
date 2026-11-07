@@ -53,8 +53,29 @@ For the complete frontend route flow, start both servers and run `node scripts/c
 
 ## Hosting and data
 
+### Vercel
+
+The backend also includes a serverless entry that reuses its MongoDB connection pool across warm requests. From the application root, prepare the deployment artifact:
+
+```powershell
+node backend/scripts/prepare-vercel.mjs
+cd outputs/express-vercel
+vercel link --project digital-samiti-api --scope wukong4 --yes
+vercel deploy --prod --scope wukong4 --yes
+```
+
+Configure `MONGODB_URI`, `MONGODB_DB`, `SAMITI_API_SECRET`, `CRON_SECRET`, and `COOKIE_SECURE=true` in the backend project's private production environment. Configure `SAMITI_API_URL=https://digital-samiti-api.vercel.app` and the matching service secret in the frontend project. The scheduler credential must match on both projects. Atlas must accept the hosting service's outbound network connections before promoting the frontend deployment.
+
+`outputs/express-vercel` contains bundled application code and dependency metadata. Credential files are excluded from the artifact upload. The checked-in Node server entry remains available for conventional hosting.
+
+### Preserving existing Postgres data
+
+`node backend/scripts/import-postgres.mjs <private-production-env-file>` copies groups and unexpired hashed guest sessions into MongoDB. The environment file supplies the existing `DATABASE_URL`, while `backend/.env` supplies Atlas configuration. The importer inserts missing records, verifies group contents, and stops if an existing MongoDB group differs. It never overwrites an existing MongoDB ledger or deletes Postgres records. Run the importer before switching traffic. Reconcile any subsequent Postgres writes before promoting the frontend.
+
+### Conventional Node hosting
+
 Deploy this service on a Node.js host with access to Atlas. Set its environment secrets privately, use `HOST=0.0.0.0`, the host's assigned `PORT`, and `COOKIE_SECURE=true` behind HTTPS. Configure the Atlas network allowlist for that host. Set the Next.js `SAMITI_API_URL` to the service's HTTPS origin and use the same `SAMITI_API_SECRET` on both services. Both services also need the same `CRON_SECRET`. Start with `npm ci`, `npm run build` and `npm start` inside `backend/` from the repository checkout.
 
-The MongoDB database is a new dataset. Existing Postgres groups are not copied by these setup scripts. Email/password sign-in continues through Neon Auth. Existing Vercel production settings must be updated separately after the Express service has been hosted and verified.
+The initial local database started as a new dataset. Before production cutover on 7 November 2026, the separate import script copied and verified 64 Postgres groups and retained 37 unexpired guest sessions. Email/password sign-in continues through Neon Auth. The Vercel frontend is now configured to use the hosted Express service. The owner approved an Atlas `0.0.0.0/0` network entry for the deployment, with database credentials still required.
 
 All balances, lending and automatic contributions use demo funds. Testnet hashes remain unverified receipts and do not credit savings.

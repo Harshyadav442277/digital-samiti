@@ -2,13 +2,13 @@
 
 Production: https://digital-samiti.vercel.app
 
-This target preserves the mobile UI, transparent vote ledgers, group contributions, lending simulations, invitations, and demo Auto Pay. It uses Next.js 16, persistent Neon Postgres, Managed Better Auth email/password sign-in, and Vercel Cron.
+This target preserves the mobile UI, transparent vote ledgers, group contributions, lending simulations, invitations, and demo Auto Pay. It uses Next.js 16, a Node.js/Express API with MongoDB Atlas, Managed Better Auth email/password sign-in, and Vercel Cron.
 
 ## Express and MongoDB backend
 
 An optional Node.js/Express 5 API now stores the ledger in MongoDB Atlas. See [backend setup and API documentation](backend/README.md). Run `npm run backend:build` and `npm run backend:start` from this directory after installing the backend's dependencies and setting its private environment values. `npm run backend:test` runs integration tests against a temporary Atlas database.
 
-The frontend uses Express when its server environment has `SAMITI_API_URL` and `SAMITI_API_SECRET`. Local setup has been connected and verified with the supplied Atlas credentials. Existing deployed settings continue to select Postgres until the Express service is hosted and configured. MongoDB starts with a new dataset. Email/password sessions continue through Neon Auth.
+The frontend uses Express when its server environment has `SAMITI_API_URL` and `SAMITI_API_SECRET`. Production is connected to the Express service at https://digital-samiti-api.vercel.app. On 7 November 2026, 64 existing Postgres groups and 37 unexpired hashed guest sessions were copied and verified in MongoDB before the frontend was promoted. Postgres source records were preserved. Email/password sessions continue through Neon Auth.
 
 Validation on 7 November 2026 covered ten Atlas integration tests, six financial/progress regression tests, both builds, and contribution/voting/repayment persistence through the frontend API routes.
 
@@ -28,7 +28,7 @@ The runtime check creates isolated sample sessions and uses the local cron secre
 
 The Vercel cron expression is `30 3 * * *` (nominally 9:00 am IST), with the bearer credential supplied through `CRON_SECRET`. Only demo contributions are processed; no real-wallet debit mandate, custody, or live lending is enabled.
 
-Deployment: `dpl_ALJC8XVUb1vr92ayLQVSG72GoW2L` (production, Ready).
+Deployment: `dpl_4ZWitDZyEgTqkbocwFqMZKM78JYd` (production, Ready).
 
 
 ## Reference-inspired UI update · 5 November 2026
@@ -43,3 +43,7 @@ Validation: TypeScript and the production build passed. Browser checks covered 3
 ## One-screen Home and Wallet update · 6 November 2026
 
 Home shows the balance, next contribution, quick actions, and two stats. Samitis and activity remain in their dedicated tabs. Wallet starts with the savings card, with Connect Nimiq inside it. Verified the Home fit in 48 portrait viewport sizes locally, checked the live layout at 320 × 568 and 390 × 800, and opened the live wallet connection sheet without requesting a wallet approval.
+
+## MongoDB production deployment � 7 November 2026
+
+Backend deployment `dpl_4A8cQMydVF1EFJoHLjzt3KZ3aRBq` and frontend deployment `dpl_4ZWitDZyEgTqkbocwFqMZKM78JYd` are live. The public health endpoint reports a connected database. Production checks verified contribution and repayment persistence directly in Atlas, duplicate protection, rejection of forged browser identity, and scheduler authorization. The owner approved the Atlas `0.0.0.0/0` IP access entry required for this Vercel setup. Database authentication remains required.

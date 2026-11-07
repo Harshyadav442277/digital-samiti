@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import helmet from 'helmet';
-import { rateLimit } from 'express-rate-limit';
-import { timingSafeEqual } from 'node:crypto';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { MongoError } from 'mongodb';
 import { SamitiStore, ApiError, type Identity } from './store';
@@ -41,7 +41,16 @@ export function createApp(store: SamitiStore, settings: Configuration) {
     }
     next();
   });
-  app.use(rateLimit({ windowMs: 60000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
+  app.use(rateLimit({
+    windowMs: 60000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false,
+    keyGenerator: req => {
+      const userId = req.header('x-samiti-user-id');
+      if (userId) return `member:${userId}`;
+      const guest = req.headers.cookie?.match(/(?:^|;\s*)samiti_demo=([a-f0-9]{64})(?:;|$)/)?.[1];
+      if (guest) return `guest:${createHash('sha256').update(guest).digest('hex')}`;
+      return ipKeyGenerator(req.ip ?? '127.0.0.1');
+    },
+  }));
   app.use(express.json({ limit: 12000, strict: true }));
 
   async function identity(req: Request, res: Response): Promise<Identity> {
