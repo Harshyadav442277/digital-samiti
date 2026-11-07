@@ -1,3 +1,5 @@
+import { forwardToSamitiBackend, usesExpressBackend } from '@/lib/samiti-backend';
+import { createGroupSchema } from '../../group-input';
 import { database } from '@/lib/database';
 import { createHash, randomBytes } from 'node:crypto';
 import { getChatGPTUser } from '../../chatgpt-auth';
@@ -42,11 +44,12 @@ async function state(s: Awaited<ReturnType<typeof session>>) {
 }
 async function insert(g: Group) { await db().prepare('INSERT OR IGNORE INTO samiti_groups (id, owner, invite, visibility, data, version) VALUES (?, ?, ?, ?, ?, 0)').bind(g.id, g.owner, g.invite, g.visibility, JSON.stringify(g)).run(); }
 export async function GET(req: Request) {
+  if (usesExpressBackend()) return forwardToSamitiBackend(req);
   const s = await session(req);
   try { return response(await state(s), s); } catch (e) { console.error('samiti_state_failed', e); return response({ error: 'Unable to load your Samitis. Please try again.' }, s, 503); }
 }
-const createSchema = z.object({ name: z.string().trim().min(3).max(50), description: z.string().trim().max(160).default('Saving together, growing together.'), monthly: z.number().positive().max(1000000), target: z.number().positive().max(100000000), rate: z.number().min(0).max(36), months: z.number().int().min(1).max(36), threshold: z.number().int().min(51).max(100), visibility: z.enum(['public', 'private']), color: z.enum(['peach', 'green', 'blue', 'purple']), icon: z.enum(['graduation', 'heart', 'sparkles', 'users']), rules: z.string().trim().max(1500), wallet: z.string().trim().max(60).default('') });
 export async function POST(req: Request) {
+  if (usesExpressBackend()) return forwardToSamitiBackend(req);
   const s = await session(req);
   if (req.headers.get('origin') !== new URL(req.url).origin) return response({ error: 'Please send requests from Digital Samiti.' }, s, 403);
   if (Number(req.headers.get('content-length')) > 12000) return response({ error: 'Request is too large.' }, s, 413);
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
       if (!existing) for (const g of makeDemo(s.id, s.name)) await insert(g);
     } else if (action === 'create') {
       if (!s.authenticated) return response({ error: 'Sign in to create a group and invite other people.', signIn: true }, s, 401);
-      const data = createSchema.parse(input);
+      const data = createGroupSchema.parse(input);
       if (data.wallet && !validAddress(data.wallet)) throw new Error('Enter a valid Nimiq wallet address.');
       if (Math.abs(round(data.monthly) - data.monthly) > 1e-9) throw new Error('Use up to 2 decimal places for contributions.');
       const count = await db().prepare('SELECT COUNT(*) AS n FROM samiti_groups WHERE owner = ?').bind(s.id).first<{ n: number }>();

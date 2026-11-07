@@ -1,6 +1,10 @@
 # Local project instructions
 
-Digital Samiti's Vercel target uses Next.js, Neon Postgres and Managed Better Auth.
+Digital Samiti's Vercel frontend uses Next.js and Managed Better Auth. Ledger storage uses
+the Node.js/Express MongoDB backend when SAMITI_API_URL is configured; otherwise it uses
+the existing Neon Postgres backend. See backend/README.md for setup and hosting.
+Keep SAMITI_API_SECRET server-only. Express accepts verified member identity only from
+the authenticated Next.js server. Never pass browser-supplied identity headers through.
 This public deployment must never trust Sites identity headers or Sites service bypass credentials.
 The Auto Pay cron requires its own CRON_SECRET. Preserve group membership checks and hashed guest sessions.
 All financial flows remain demo/testnet only. No wallet approvals or real debits during agent testing.

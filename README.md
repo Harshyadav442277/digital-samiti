@@ -4,6 +4,14 @@ Production: https://digital-samiti.vercel.app
 
 This target preserves the mobile UI, transparent vote ledgers, group contributions, lending simulations, invitations, and demo Auto Pay. It uses Next.js 16, persistent Neon Postgres, Managed Better Auth email/password sign-in, and Vercel Cron.
 
+## Express and MongoDB backend
+
+An optional Node.js/Express 5 API now stores the ledger in MongoDB Atlas. See [backend setup and API documentation](backend/README.md). Run `npm run backend:build` and `npm run backend:start` from this directory after installing the backend's dependencies and setting its private environment values. `npm run backend:test` runs integration tests against a temporary Atlas database.
+
+The frontend uses Express when its server environment has `SAMITI_API_URL` and `SAMITI_API_SECRET`. Local setup has been connected and verified with the supplied Atlas credentials. Existing deployed settings continue to select Postgres until the Express service is hosted and configured. MongoDB starts with a new dataset. Email/password sessions continue through Neon Auth.
+
+Validation on 7 November 2026 covered ten Atlas integration tests, six financial/progress regression tests, both builds, and contribution/voting/repayment persistence through the frontend API routes.
+
 The original owner-private Sites deployment remains separate, including its data. Its private identity/service headers are not accepted as authentication on Vercel. Anonymous demo sessions use hashed, opaque bearer cookies independent of member IDs. Signed-in identity comes from Managed Better Auth.
 
 Required server-only environment variables: `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, and `CRON_SECRET`. They are configured in Vercel; local values are in ignored `.env.local`. Never commit them. Database schema is in `migrations/001_samiti.sql`. The project uses the free Neon organization and 0.25 CU compute.

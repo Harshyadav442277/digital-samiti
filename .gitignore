@@ -1,4 +1,7 @@
 node_modules/
+backend/node_modules/
+backend/dist/
+backend/.env*
 .next/
 .vercel/
 .env*
@@ -7,3 +10,4 @@ node_modules/
 !.env.example
 outputs/
 next-env.d.ts
+!backend/.env.example

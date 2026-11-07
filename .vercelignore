@@ -4,3 +4,6 @@ node_modules
 .next
 *.tsbuildinfo
 outputs
+backend/.env*
+backend/node_modules
+backend/dist

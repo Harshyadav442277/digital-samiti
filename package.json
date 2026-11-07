@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "backend:dev": "npm --prefix backend run dev",
+    "backend:build": "npm --prefix backend run build",
+    "backend:start": "npm --prefix backend start",
+    "backend:test": "npm --prefix backend test"
   },
   "dependencies": {
     "next": "16.3.4",
@@ -14,7 +18,7 @@
     "@nimiq/hub-api": "^1.16.0",
     "qrcode": "^1.5.4",
     "lucide-react": "^1.31.0",
-    "zod": "^3.25.76",
+    "zod": "^4.6.7",
     "@neondatabase/serverless": "^1.0.2",
     "@neon/auth": "0.8.2"
   },
