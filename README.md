@@ -44,6 +44,12 @@ Validation: TypeScript and the production build passed. Browser checks covered 3
 
 Home shows the balance, next contribution, quick actions, and two stats. Samitis and activity remain in their dedicated tabs. Wallet starts with the savings card, with Connect Nimiq inside it. Verified the Home fit in 48 portrait viewport sizes locally, checked the live layout at 320 × 568 and 390 × 800, and opened the live wallet connection sheet without requesting a wallet approval.
 
-## MongoDB production deployment � 7 November 2026
+## MongoDB production deployment · 7 November 2026
 
 Backend deployment `dpl_4A8cQMydVF1EFJoHLjzt3KZ3aRBq` and frontend deployment `dpl_4ZWitDZyEgTqkbocwFqMZKM78JYd` are live. The public health endpoint reports a connected database. Production checks verified contribution and repayment persistence directly in Atlas, duplicate protection, rejection of forged browser identity, and scheduler authorization. The owner approved the Atlas `0.0.0.0/0` IP access entry required for this Vercel setup. Database authentication remains required.
+
+## Empty startup and demo
+
+The startup page offers Create account, Sign in, and Start an empty demo. New members start with no Samitis, balances, or transactions. Each fresh demo receives an isolated guest session, can create private practice Samitis at zero, and records only contributions entered by the user. Bootstrap no longer inserts sample groups. Generated sample groups were removed from MongoDB and legacy Postgres, with a private recovery copy under ignored outputs/. User-created circles were retained.
+
+Validation includes eleven Atlas API tests, the local frontend journey, signup input validation, and desktop/320px layout checks. Real email verification was not exercised during agent testing.

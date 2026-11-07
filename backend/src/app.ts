@@ -75,6 +75,16 @@ export function createApp(store: SamitiStore, settings: Configuration) {
     res.json(await store.state(await identity(req, res)));
   });
   app.post('/api/samiti', async (req, res) => {
+    if (req.body?.action === 'start-demo') {
+      if (req.header('x-samiti-user-id')) throw new ApiError(403, 'Sign out before opening a guest demo.');
+      const fresh = await store.guest(undefined);
+      res.cookie('samiti_demo', fresh.token, {
+        httpOnly: true, sameSite: 'lax', secure: settings.COOKIE_SECURE === 'true',
+        path: '/', maxAge: 30 * 86400000,
+      });
+      res.json(await store.state(fresh.identity));
+      return;
+    }
     res.json(await store.action(await identity(req, res), req.body));
   });
   app.all('/api/autopay/run', async (req, res) => {

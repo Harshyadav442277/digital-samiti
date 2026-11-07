@@ -16,7 +16,10 @@ await writeFile(new URL('package.json', output), JSON.stringify({
 }, null, 2) + '\n');
 await writeFile(new URL('package-lock.json', output), await readFile(new URL('../package-lock.json', import.meta.url)));
 await writeFile(new URL('vercel.json', output), JSON.stringify({
-  framework: 'express', regions: ['iad1'],
+  version: 2,
+  regions: ['iad1'],
+  builds: [{ src: 'src/index.js', use: '@vercel/node' }],
+  routes: [{ src: '/(.*)', dest: '/src/index.js' }],
 }, null, 2) + '\n');
 await writeFile(new URL('.vercelignore', output), '.env*\nnode_modules\n.git\n');
 console.log('Prepared deployable Express service under outputs/express-vercel. Environment values are configured separately.');

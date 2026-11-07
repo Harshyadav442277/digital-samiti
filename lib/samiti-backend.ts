@@ -59,6 +59,12 @@ export async function forwardToSamitiBackend(req: Request, scheduler = false) {
       method: req.method, headers, body, cache: 'no-store',
       signal: AbortSignal.timeout(20000), redirect: 'error',
     });
+    if (!upstream.headers.get('content-type')?.includes('application/json')) {
+      await upstream.body?.cancel();
+      return Response.json({ error: 'The Samiti service is temporarily unavailable. Please try again.' }, {
+        status: 503, headers: { 'cache-control': 'no-store' },
+      });
+    }
     const responseHeaders = new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' });
     for (const cookie of upstream.headers.getSetCookie()) responseHeaders.append('set-cookie', cookie);
     return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });

@@ -38,7 +38,7 @@ Restart the backend after this step to reload the shared cron credential. Then r
 
 All API endpoints require `Authorization: Bearer <SAMITI_API_SECRET>`. Only the trusted frontend server adds `x-samiti-user-id` and the URI-encoded `x-samiti-user-name` after validating a signed-in session. Guest access uses an opaque, HttpOnly cookie whose hash is stored with an expiration date. The runner additionally requires `x-samiti-cron-authorization: Bearer <CRON_SECRET>`.
 
-Requests support the existing `{ action, requestId, ...fields }` contract. Bootstrap also accepts `{ action: 'bootstrap' }`. Every other action requires a UUID request ID. Member writes use versioned atomic updates with retries. Duplicate contribution requests with the same ID return the existing state. Create retries reuse the request ID as the group ID. Group creation and initial sample groups use Atlas transactions.
+Requests support the existing `{ action, requestId, ...fields }` contract. Bootstrap also accepts `{ action: 'bootstrap' }`. Every other action requires a UUID request ID. Member writes use versioned atomic updates with retries. Duplicate contribution requests with the same ID return the existing state. Create retries reuse the request ID as the group ID. Group creation uses Atlas transactions. Bootstrap leaves empty accounts unchanged. Start-demo creates a new isolated guest session with zero groups and balances. Guest-created groups are private practice circles and cannot be joined by other accounts.
 
 ## Validation
 

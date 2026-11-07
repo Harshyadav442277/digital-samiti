@@ -6,6 +6,7 @@ import type { Server } from 'node:http';
 import { configuration } from '../src/config';
 import { SamitiStore } from '../src/store';
 import { createApp } from '../src/app';
+import { makeDemo } from '../../app/model';
 
 const settings = configuration();
 const databaseName = `samiti_test_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
@@ -63,15 +64,20 @@ test('health works and the API rejects missing or spoofed service credentials', 
   assert.equal((await request('/api/samiti', { headers: { origin: 'https://evil.example' } })).response.status, 403);
 });
 
-test('guest tokens are hashed and duplicate bootstrap requests create exactly three groups', async () => {
+test('new sessions and signed-in accounts remain empty after bootstrap', async () => {
   const initial = await request('/api/samiti');
   cookie = initial.response.headers.getSetCookie()[0].split(';')[0];
   assert.match(cookie, /^samiti_demo=[a-f0-9]{64}$/);
   const responses = await Promise.all([1, 2].map(() => request('/api/samiti', { cookie, body: { action: 'bootstrap' } })));
   for (const result of responses) assert.equal(result.response.status, 200, JSON.stringify(result.data));
   const state = await request('/api/samiti', { cookie });
-  assert.equal(state.data.groups.length, 3);
-  groupId = state.data.groups[0].id;
+  assert.equal(state.data.groups.length, 0);
+  const signedIn = await request('/api/samiti', { user: 'new-account', body: { action: 'bootstrap' } });
+  assert.equal(signedIn.data.groups.length, 0);
+  const fixtures = makeDemo(state.data.user.id, state.data.user.name);
+  // Fixtures belong only to this temporary test database, never to onboarding.
+  await store.groups.insertMany(fixtures.map(group => ({ _id: group.id, group, version: 0, createdAt: new Date(group.created) })));
+  groupId = fixtures[0].id;
   const session = await store.sessions.findOne({ userId: state.data.user.id });
   assert.notEqual(session?._id, cookie.split('=')[1]);
 });
@@ -86,12 +92,12 @@ test('simultaneous retries of the same contribution are applied exactly once', a
   assert.equal((await request('/api/samiti', { cookie, body: action('contribute', { groupId }) })).response.status, 400);
 });
 
-test('anonymous identity headers do not grant membership or group creation', async () => {
+test('anonymous identity headers cannot grant membership', async () => {
   const outsider = await request('/api/samiti', { headers: { 'oai-authenticated-user-id': 'owner', 'oai-authenticated-user-email': 'owner@example.invalid' } });
   assert.equal(outsider.data.user.authenticated, false);
   const outsiderCookie = outsider.response.headers.getSetCookie()[0].split(';')[0];
   assert.equal((await request('/api/samiti', { cookie: outsiderCookie, body: action('contribute', { groupId }) })).response.status, 403);
-  assert.equal((await request('/api/samiti', { cookie: outsiderCookie, body: action('create') })).response.status, 401);
+  assert.equal((await request('/api/samiti', { cookie: outsiderCookie, body: action('create') })).response.status, 400);
 });
 
 test('votes persist with audit entries and cannot be changed', async () => {
@@ -171,4 +177,29 @@ test('testnet submission receipts never credit the savings ledger', async () => 
   assert.equal(result.response.status, 200);
   assert.equal(result.data.groups[0].payments[0].status, 'submitted_unverified');
   assert.equal(result.data.groups[0].members[0].saved, 0);
+});
+
+
+test('a fresh demo starts at zero and its private groups remain isolated', async () => {
+  const started = await request('/api/samiti', { cookie, body: { action: 'start-demo' } });
+  assert.equal(started.response.status, 200);
+  assert.equal(started.data.groups.length, 0);
+  assert.notEqual(started.data.user.id, (await request('/api/samiti', {cookie})).data.user.id);
+  const demoCookie = started.response.headers.getSetCookie()[0].split(';')[0];
+  const body = action('create', {
+    name: 'My first circle', monthly: 100, target: 1000, rate: 6, months: 6,
+    threshold: 60, visibility: 'private', color: 'peach', icon: 'users', rules: '',
+  });
+  const created = await request('/api/samiti', { cookie: demoCookie, body });
+  assert.equal(created.response.status, 200);
+  const group = created.data.groups[0];
+  assert.equal(group.guestOnly, true);
+  assert.equal(group.members[0].saved, 0);
+  assert.equal(group.activity.length, 0);
+  assert.equal(group.loans.length, 0);
+  assert.equal((await request('/api/samiti', { user: 'test-joiner', body: action('join', {code:group.invite}) })).response.status, 403);
+  assert.equal((await request('/api/samiti', { cookie: demoCookie, body: {...body,requestId:randomUUID(),visibility:'public'} })).response.status, 403);
+  const restarted = await request('/api/samiti', { cookie: demoCookie, body: {action:'start-demo'} });
+  assert.equal(restarted.data.groups.length, 0);
+  assert.equal((await request('/api/samiti', {cookie:demoCookie})).data.groups.length, 1);
 });

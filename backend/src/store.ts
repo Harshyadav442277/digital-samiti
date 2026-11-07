@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { MongoClient, type Collection } from 'mongodb';
 import { z } from 'zod';
-import { type AppState, type Group, makeDemo, round, validAddress } from '../../app/model';
+import { type AppState, type Group, round, validAddress } from '../../app/model';
 import { updateGroup } from '../../app/domain';
 import { createGroupSchema } from '../../app/group-input';
 import { indiaDate, processAutoPay } from '../../app/autopay';
@@ -87,17 +87,14 @@ export class SamitiStore {
     const requestId = input.action === 'bootstrap' ? input.requestId : z.string().uuid().parse(input.requestId);
     switch (input.action) {
       case 'bootstrap': {
-        await this.client.withSession(session => session.withTransaction(async () => {
-          const exists = await this.groups.findOne({ 'group.owner': identity.id }, { session });
-          if (exists) return;
-          await this.owners.updateOne({ _id: identity.id }, { $set: { groups: 3 } }, { upsert: true, session });
-          await this.groups.insertMany(makeDemo(identity.id, identity.name).map(group => this.document(group)), { session });
-        }));
+        // Empty accounts stay empty. Sample fixtures are confined to tests.
         break;
       }
       case 'create': {
-        this.requireAccount(identity);
         const data = createGroupSchema.parse(input);
+        if (!identity.authenticated && data.visibility !== 'private') {
+          throw new ApiError(403, 'Demo Samitis are personal and private. Create an account to share a circle.');
+        }
         const groupId = requestId!;
         if (data.wallet && !validAddress(data.wallet)) throw new ApiError(400, 'Enter a valid Nimiq address.');
         if (round(data.monthly) !== data.monthly) throw new ApiError(400, 'Use up to 2 decimals for contributions.');
@@ -113,7 +110,7 @@ export class SamitiStore {
           if (!count || count.groups > 25) throw new ApiError(400, 'You can create up to 25 Samitis.');
           const group: Group = {
             ...data, id: groupId, owner: identity.id, invite: randomUUID().replace(/-/g, '').toUpperCase(),
-            demo: true, members: [{ id: identity.id, name: identity.name, saved: 0, interest: 0 }],
+            demo: true, guestOnly: !identity.authenticated, members: [{ id: identity.id, name: identity.name, saved: 0, interest: 0 }],
             loans: [], activity: [], created: new Date().toISOString(),
           };
           await this.groups.insertOne(this.document(group), { session });
@@ -127,6 +124,7 @@ export class SamitiStore {
           : { 'group.invite': z.string().min(1).max(40).parse(input.code).trim().toUpperCase() };
         const row = await this.groups.findOne(filter);
         if (!row) throw new ApiError(404, 'Invite code or public Samiti not found.');
+        if (row.group.guestOnly) throw new ApiError(403, 'This Samiti belongs to a personal demo.');
         await this.mutate(row._id, group => {
           if (group.members.some(member => member.id === identity.id)) return false;
           if (group.members.length >= 100) throw new ApiError(400, 'This Samiti has reached its 100-member limit.');

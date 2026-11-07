@@ -14,6 +14,7 @@ import { Appearance } from './appearance-panel';
 import { PendingPayments } from './pending-payments';
 import { GroupProgress } from './group-progress';
 import { ContributionReceipt } from './contribution-receipt';
+import { StartScreen } from './start-screen';
 
 type View = 'overview' | 'groups' | 'loans' | 'wallet';
 const navigation = [{ id: 'overview', label: 'Overview', Icon: LayoutGrid }, { id: 'groups', label: 'My Samitis', Icon: Users }, { id: 'loans', label: 'Loans & votes', Icon: Vote }, { id: 'wallet', label: 'Wallet', Icon: Wallet }] as const;
@@ -23,6 +24,9 @@ function Avatars({ group }: { group: Group }) { return <div className="member-pr
 
 export default function DigitalSamiti() {
   const [state, setState] = useState<AppState | null>(null);
+  const [entered, setEntered] = useState(false);
+  const enteredRef = useRef(false);
+  enteredRef.current = entered;
   const [view, setView] = useState<View>('overview');
   const [focusedLoan, setFocusedLoan] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ContributionReceipt | null>(null);
@@ -66,28 +70,61 @@ export default function DigitalSamiti() {
   const visibleGroups=groups.filter(g=>g.name.toLowerCase().includes(query.toLowerCase())).slice().sort((a,b)=>groupSort==='saved'?groupSavings(b)-groupSavings(a):groupSort==='progress'?groupSavings(b)/b.target-groupSavings(a)/a.target:b.created.localeCompare(a.created));
   const balanceAmount=new Intl.NumberFormat('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}).format(balanceMode==='savings'?mySavings:groups.reduce((sum,g)=>sum+pool(g),0)).split('.');
   async function load() {
+    const version = mutationVersion.current;
     setError('');
     try {
       const res = await fetch('/api/samiti'); const data = await res.json() as AppState & { error?: string }; if (!res.ok) throw new Error(data.error);
-      if (data.groups.length === 0) { const seed = await fetch('/api/samiti', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'bootstrap' }) }); const seeded = await seed.json() as AppState & { error?: string }; if (!seed.ok) throw new Error(seeded.error); setState(seeded); }
-      else setState(data);
+      if (version !== mutationVersion.current) return;
+      setState(data);
+      let demoActive = false;
+      try { demoActive = sessionStorage.getItem('samiti-demo-active') === data.user.id; } catch {}
+      setEntered(data.user.authenticated || demoActive);
+
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to load.'); }
   }
   useEffect(() => { void load(); const saved = localStorage.getItem('samiti-wallet'); if (saved) setWallet(saved); const code = new URLSearchParams(location.search).get('invite'); if (code) { setInviteCode(code); setModal('join'); } }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4500); return () => clearTimeout(t); }, [toast]);
   useEffect(() => {
     let disposed = false; const refresh = async () => {
-      if (document.visibilityState !== 'visible' || busyRef.current) return;
+      if (!enteredRef.current || document.visibilityState !== 'visible' || busyRef.current) return;
       const version = mutationVersion.current;
       try { const res = await fetch('/api/samiti'); if (!res.ok) throw new Error(); const data = await res.json() as AppState; if (!disposed && !busyRef.current && version === mutationVersion.current) { setState(data); setSyncStatus('Up to date'); } } catch { if (!disposed) setSyncStatus('Offline · showing saved data'); }
     };
     const timer = setInterval(refresh, 15000); window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
     return () => { disposed = true; clearInterval(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
   }, []);
+  async function startDemo() {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    mutationVersion.current++;
+    setError('');
+    try {
+      const response = await fetch('/api/samiti', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start-demo' }),
+      });
+      const data = await response.json() as AppState & { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to start your demo.');
+      mutationVersion.current++;
+      setState(data);
+      setEntered(true);
+      setModal(null);
+      try { sessionStorage.setItem('samiti-demo-active', data.user.id); } catch {}
+      navigate('overview');
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Please try again.');
+    } finally { busyRef.current = false; setBusy(false); }
+  }
+  function leaveDemo() {
+    try { sessionStorage.removeItem('samiti-demo-active'); } catch {}
+    setEntered(false);
+    setModal(null);
+  }
   function navigate(next: View) { setFocusedLoan(null); setView(next); setSelected(null); setQuery(''); location.hash=next; window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function reviewLoan(id: string) { setModal(null); setFocusedLoan(id); setLoanTab('All requests'); setView('loans'); setSelected(null); location.hash=`loans/${encodeURIComponent(id)}`; }
   useEffect(() => { if (focusedLoan && state && view === 'loans') { const card = document.getElementById(`loan-${focusedLoan}`); card?.focus({preventScroll:true}); card?.scrollIntoView({behavior:'smooth',block:'start'}); } }, [focusedLoan, view, !!state]);
-  function open(next: ModalKind, groupId?: string) { setModalGroup(groupId ?? groups[0]?.id ?? ''); setModal(next); setFormError(''); }
+  function open(next: ModalKind, groupId?: string) { if (!groups.length && ['contribute','loan','invite','autopay'].includes(next ?? '')) next = 'create'; setModalGroup(groupId ?? groups[0]?.id ?? ''); setModal(next); setFormError(''); }
   function groupDetail(g: Group) { setSelected(g.id); setDetailTab('Overview'); setView('groups'); location.hash=`groups/${encodeURIComponent(g.id)}`; window.scrollTo({ top: 0, behavior: 'smooth' }); }
   async function action(actionName: string, payload: Record<string, unknown> = {}, message = 'Saved successfully', close = true) {
     if (busyRef.current) return false; busyRef.current = true; mutationVersion.current++; setBusy(true); setFormError('');
@@ -114,9 +151,10 @@ export default function DigitalSamiti() {
   function GroupCard({ g }: { g: Group }) { const pct = Math.min(100, Math.round(groupSavings(g) / g.target * 100)); return <button className={`group-card ${g.color}`} onClick={() => groupDetail(g)}><div className="group-card-top"><GoalRing value={pct}><GroupArt type={g.icon} /></GoalRing><span className="privacy"><LockKeyhole size={11} /> {g.visibility === 'private' ? 'Private' : 'Public'}</span><ArrowUpRight className="card-arrow" size={20} /></div><div className="group-card-content"><h3>{g.name}</h3><p>{money(g.monthly)} NIM <span>/ month</span></p><div className="progress"><span style={{ width: `${pct}%` }} /></div><div className="group-progress-label"><strong>{money(groupSavings(g))} <small>NIM saved</small></strong><span>{pct}%</span></div><Avatars group={g} /></div></button>; }
 
 
-  return <div className={`app-shell view-${view}`}><aside className="sidebar"><a href="/" className="brand"><span className="brand-mark"><Sprout size={26} strokeWidth={2.3} /></span><span>digital<span className="brand-second">samiti<span className="brand-dot">.</span></span></span></a><div className="sidebar-caption">A little each. A lot together.</div><nav aria-label="Main navigation">{navigation.map(n => <button key={n.id} aria-current={view===n.id?'page':undefined} className={`nav-item ${view === n.id ? 'active' : ''}`} onClick={() => navigate(n.id)}><n.Icon size={21} /><span>{n.label}</span>{n.id === 'loans' && pendingVotes.length > 0 && <span className="nav-count">{pendingVotes.length}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="community-note"><span className="tiny-flower">✳</span><h4>Better, together.</h4><p>Your people. Your goals.<br />Your way to grow.</p><button onClick={() => open('create')}>Start a Samiti <ArrowUpRight size={15} /></button></div><button className="nav-item help-link" onClick={() => open('help')}><HelpCircle size={20} /> Help & how it works</button><button className="sidebar-profile" onClick={() => open('wallet')}><Avatar name={state?.user.name || 'Harsh'} index={4} /><span><strong>{state?.user.name || 'Harsh'}</strong><small>{state?.user.authenticated ? 'Your community account' : 'Exploring Digital Samiti'}</small></span><ChevronDown size={15} /></button></div></aside>
-  <main className="main"><header className="topbar"><div className="mobile-brand"><span className="brand-mark"><Sprout size={22} /></span><strong>digital samiti<span>.</span></strong></div><div className="breadcrumb">Your money, in good company <span>✳</span></div><div className="topbar-actions"><button className="icon-button appearance-button" onClick={()=>open('appearance')} aria-label="Personalize appearance"><Palette size={21}/></button>{view !== 'wallet' && <button className="wallet-connect" onClick={() => open('wallet')}><span className="nimiq-hex" />{wallet ? 'Wallet connected' : 'Connect wallet'}</button>}<button className="icon-button notification-button" onClick={() => open('notifications')} aria-label="Notifications"><Bell size={21} />{dueGroups.length > 0 && <i />}</button><button className="profile-button" onClick={() => open('wallet')} aria-label="Your profile"><Avatar name={state?.user.name || 'Harsh'} index={4} /></button></div></header>
-    <div className="page-content">{(view === 'groups' || view === 'loans') && <div className="demo-bar"><span><span className="demo-dot" /> Demo workspace <span className="demo-separator">·</span> <span className="demo-description">Explore with sample funds</span></span><button onClick={() => open('help')}>How it works <ArrowUpRight size={13} /></button></div>}
+  if (!entered) return <StartScreen returnTo={inviteCode ? '/?invite=' + encodeURIComponent(inviteCode) : undefined} busy={busy} error={error} startDemo={startDemo}/>;
+  return <div className={`app-shell view-${view} ${groups.length ? '' : 'workspace-empty'}`}><aside className="sidebar"><a href="/" className="brand"><span className="brand-mark"><Sprout size={26} strokeWidth={2.3} /></span><span>digital<span className="brand-second">samiti<span className="brand-dot">.</span></span></span></a><div className="sidebar-caption">A little each. A lot together.</div><nav aria-label="Main navigation">{navigation.map(n => <button key={n.id} aria-current={view===n.id?'page':undefined} className={`nav-item ${view === n.id ? 'active' : ''}`} onClick={() => navigate(n.id)}><n.Icon size={21} /><span>{n.label}</span>{n.id === 'loans' && pendingVotes.length > 0 && <span className="nav-count">{pendingVotes.length}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="community-note"><span className="tiny-flower">✳</span><h4>Better, together.</h4><p>Your people. Your goals.<br />Your way to grow.</p><button onClick={() => open('create')}>Start a Samiti <ArrowUpRight size={15} /></button></div><button className="nav-item help-link" onClick={() => open('help')}><HelpCircle size={20} /> Help & how it works</button><button className="sidebar-profile" onClick={() => open('wallet')}><Avatar name={state?.user.name || 'Your account'} index={4} /><span><strong>{state?.user.name || 'Your account'}</strong><small>{state?.user.authenticated ? 'Your community account' : 'Exploring Digital Samiti'}</small></span><ChevronDown size={15} /></button></div></aside>
+  <main className="main"><header className="topbar"><div className="mobile-brand"><span className="brand-mark"><Sprout size={22} /></span><strong>digital samiti<span>.</span></strong></div><div className="breadcrumb">Your money, in good company <span>✳</span></div><div className="topbar-actions"><button className="icon-button appearance-button" onClick={()=>open('appearance')} aria-label="Personalize appearance"><Palette size={21}/></button>{view !== 'wallet' && <button className="wallet-connect" onClick={() => open('wallet')}><span className="nimiq-hex" />{wallet ? 'Wallet connected' : 'Connect wallet'}</button>}<button className="icon-button notification-button" onClick={() => open('notifications')} aria-label="Notifications"><Bell size={21} />{dueGroups.length > 0 && <i />}</button><button className="profile-button" onClick={() => open('wallet')} aria-label="Your profile"><Avatar name={state?.user.name || 'Your account'} index={4} /></button></div></header>
+    <div className="page-content">{!state?.user.authenticated && <div className="workspace-banner"><span>Personal demo · all money and payments are simulated</span><div><a href="/sign-up">Create account</a><button onClick={leaveDemo}>Exit demo</button></div></div>}{(view === 'groups' || view === 'loans') && <div className="demo-bar"><span><span className="demo-dot" /> Demo workspace <span className="demo-separator">·</span> <span className="demo-description">Explore with sample funds</span></span><button onClick={() => open('help')}>How it works <ArrowUpRight size={13} /></button></div>}
     {error ? <div className="empty error-state"><CircleHelp size={40} /><h2>Let’s try that again.</h2><p>{error}</p><button className="button primary" onClick={load}><RefreshCw size={16} /> Reload workspace</button></div> : !state ? <div className="loading-state"><LoaderCircle className="spin" size={30} /><p>Getting your circle ready…</p></div> : <>
     {active ? <>
       <button className="back-link" onClick={() => navigate('groups')}><ArrowLeft size={17} /> My Samitis</button><div className="page-heading group-detail-heading"><div className={`detail-art ${active.color}`}><GroupArt type={active.icon} /></div><div><h1>{active.name}</h1><p>{active.description}</p></div><button className="button outline" onClick={() => open('invite', active.id)}><Plus size={16} /> Invite</button></div><div className={`detail-summary ${active.color}`}><div><span>Available group fund</span><h2>{money(pool(active))} <small>NIM</small></h2><Avatars group={active} /></div><div className="detail-summary-stats"><p>Monthly contribution<strong>{money(active.monthly)} NIM</strong></p><p>Annual loan interest<strong>{active.rate}%</strong></p></div></div><div className="detail-actions"><button className="button primary" onClick={() => open('contribute', active.id)}><Plus size={17} /> Add contribution</button><button className="button outline" onClick={() => open('loan', active.id)}><ArrowUpRight size={17} /> Request a loan</button></div><div className="tabs detail-tabs">{['Overview', 'Members', 'Activity', 'Rules'].map(t => <button key={t} className={detailTab === t ? 'selected' : ''} onClick={() => setDetailTab(t)}>{t}</button>)}</div>
@@ -127,11 +165,13 @@ export default function DigitalSamiti() {
     </> : view === 'overview' ? <>
       <h1 className="sr-only">Home</h1>
       <div className="hero-grid"><section className="balance-card"><div className="balance-content"><div className="balance-tabs"><button aria-pressed={balanceMode==='savings'} onClick={()=>setBalanceMode('savings')}>Your savings</button><button aria-pressed={balanceMode==='community'} onClick={()=>setBalanceMode('community')}>Group fund</button></div><div className="balance-eyebrow">{balanceMode==='savings'?'A little saved. A lot possible.':'Available across your circles'}<button className="balance-privacy" aria-label={appearance.hideBalance?'Show balances':'Hide balances'} onClick={()=>updateAppearance({...appearance,hideBalance:!appearance.hideBalance})}>{appearance.hideBalance?<EyeOff size={17}/>:<Eye size={17}/>}</button></div><div className="balance-amount" aria-live="polite">{appearance.hideBalance?'••••':balanceAmount[0]}{!appearance.hideBalance&&<span>.{balanceAmount[1]}</span>} <small>NIM</small></div><span className="balance-pill"><Sprout size={13}/> Growing together in {groups.length} Samitis</span></div><div className="piggy-art"><PiggyBank/></div><div className="hero-footer"><span>Little by little. Together.</span><span className="hero-sparkle">✦</span></div></section><PendingPayments groups={groups} userId={userId} hidden={appearance.hideBalance} contribute={id => open('contribute',id)} reviewLoan={reviewLoan}/></div>
+      {!groups.length ? <section className="fresh-start-panel"><h2>Your first circle starts with you.</h2><p>You have 0 NIM saved and no transactions. Create a Samiti, choose your contribution, and take your first step.</p><button className="button primary" onClick={() => open('create')}><Plus size={17}/> Create your first Samiti</button>{state.user.authenticated && <button className="text-button" onClick={() => open('join')}>Join with an invite</button>}</section> : <>
       <div className="quick-actions" aria-label="Quick actions">{([{art:'save',label:'Contribute',modal:'contribute'},{art:'autopay',label:'Auto Pay',modal:'autopay'},{art:'loan',label:'Get a loan',modal:'loan'},{art:'invite',label:'Invite',modal:'invite'}] as const).map(a=><button key={a.art} onClick={()=>open(a.modal,a.modal==='contribute'?dueGroups[0]?.id:undefined)}><span className={`action-tile action-${a.art}`}><ActionArt type={a.art}/></span><strong>{a.label}</strong></button>)}</div>
       <div className="home-insights">
         <div className="home-insight"><span className="insight-icon purple"><TrendingUp size={20} /></span><strong>{appearance.hideBalance?'••••':money(myInterest)}</strong><small>NIM earned</small></div>
         <button className="home-insight" onClick={() => { setLoanTab(pendingVotes.length ? 'Needs your vote' : 'All requests'); navigate('loans'); }}><span className="insight-icon peach"><Vote size={20} /></span><strong>{pendingVotes.length}</strong><small>{pendingVotes.length === 1 ? 'vote needs you' : 'votes need you'}</small></button>
       </div>
+      </>}
     </> : view === 'groups' ? <>
       <div className="page-heading"><div><div className="eyebrow">YOUR PEOPLE, YOUR POSSIBILITIES</div><h1>My Samitis<span className="heading-dot">.</span></h1><p>A shared future starts with a small circle.</p></div><button className="button primary" onClick={() => open('create')}><Plus size={17} /> Create a Samiti</button></div><div className="group-toolbar"><div className="tabs">{['Joined', 'Explore'].map(t => <button key={t} className={groupTab === t ? 'selected' : ''} onClick={() => setGroupTab(t)}>{t}</button>)}</div><button className="text-button" onClick={() => open('join')}>Join with code <Plus size={16} /></button></div><div className="group-search-sort"><label className="search-box"><Search size={18} /><input aria-label="Search Samitis" placeholder="Find your circle…" value={query} onChange={e => setQuery(e.target.value)} /></label>{groupTab==='Joined'&&<select aria-label="Sort Samitis" value={groupSort} onChange={e=>setGroupSort(e.target.value)}><option value="recent">Newest first</option><option value="saved">Most saved</option><option value="progress">Goal progress</option></select>}</div>
       {groupTab === 'Joined' ? <div className="group-grid">{visibleGroups.length?visibleGroups.map(g => <GroupCard key={g.id} g={g} />):<div className="panel empty full-grid"><Search size={27}/><h3>No circles match yet.</h3><p>Try a different name or start a new Samiti.</p><button className="text-button" onClick={()=>setQuery('')}>Clear search <X size={14}/></button></div>}<button className="new-group-card" onClick={() => open('create')}><span><Plus size={25} /></span><strong>A new circle of possibilities</strong><p>Create a Samiti with your people</p></button></div> : <div className="group-grid">{state.publicGroups.filter(g => g.name.toLowerCase().includes(query.toLowerCase())).length ? state.publicGroups.filter(g => g.name.toLowerCase().includes(query.toLowerCase())).map(g => <article className={`explore-card ${g.color}`} key={g.id}><span className="group-art"><GroupArt type={g.icon} /></span><h3>{g.name}</h3><p>{g.description}</p><strong>{money(g.monthly)} NIM / month</strong><p>{g.count} members · Practice group</p><button className="button primary" disabled={busy || groups.some(m => m.id === g.id)} onClick={() => action('join', { publicId: g.id }, 'Welcome to your new circle!')}>{groups.some(m => m.id === g.id) ? 'Already joined' : 'Join this Samiti'}</button></article>) : <div className="panel empty full-grid"><Globe size={35} /><h3>The next circle could be yours</h3><p>No public Samitis match yet. Create one or join a private circle with an invite code.</p><button className="button primary" onClick={() => open('create')}>Create a public Samiti</button></div>}</div>}

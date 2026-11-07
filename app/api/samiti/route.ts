@@ -3,7 +3,7 @@ import { createGroupSchema } from '../../group-input';
 import { database } from '@/lib/database';
 import { createHash, randomBytes } from 'node:crypto';
 import { getChatGPTUser } from '../../chatgpt-auth';
-import { makeDemo, Group, validAddress, round } from '../../model';
+import { Group, validAddress, round } from '../../model';
 import { updateGroup } from '../../domain';
 import { z } from 'zod';
 
@@ -56,17 +56,20 @@ export async function POST(req: Request) {
   try {
     const text = await boundedBody(req);
     const input = JSON.parse(text); const action = String(input.action);
-    if (action === 'bootstrap') {
-      const existing = await db().prepare('SELECT id FROM samiti_groups WHERE owner = ? LIMIT 1').bind(s.id).first();
-      if (!existing) for (const g of makeDemo(s.id, s.name)) await insert(g);
+    if (action === 'start-demo') {
+      if (s.authenticated) return response({ error: 'Sign out before opening a guest demo.' }, s, 403);
+      const fresh = await session(new Request(req.url));
+      return response(await state(fresh), fresh);
+    } else if (action === 'bootstrap') {
+      // Kept for older clients. Empty accounts receive no generated balances.
     } else if (action === 'create') {
-      if (!s.authenticated) return response({ error: 'Sign in to create a group and invite other people.', signIn: true }, s, 401);
       const data = createGroupSchema.parse(input);
+      if (!s.authenticated && data.visibility !== 'private') return response({ error: 'Demo circles are personal and private.' }, s, 403);
       if (data.wallet && !validAddress(data.wallet)) throw new Error('Enter a valid Nimiq wallet address.');
       if (Math.abs(round(data.monthly) - data.monthly) > 1e-9) throw new Error('Use up to 2 decimal places for contributions.');
       const count = await db().prepare('SELECT COUNT(*) AS n FROM samiti_groups WHERE owner = ?').bind(s.id).first<{ n: number }>();
       if ((count?.n ?? 0) >= 25) throw new Error('You can create up to 25 Samitis.');
-      const g: Group = { ...data, id: crypto.randomUUID(), owner: s.id, invite: crypto.randomUUID().replace(/-/g, '').toUpperCase(), demo: true, members: [{ id: s.id, name: s.name, saved: 0, interest: 0 }], loans: [], activity: [], created: new Date().toISOString() };
+      const g: Group = { ...data, id: crypto.randomUUID(), owner: s.id, invite: crypto.randomUUID().replace(/-/g, '').toUpperCase(), demo: true, guestOnly: !s.authenticated, members: [{ id: s.id, name: s.name, saved: 0, interest: 0 }], loans: [], activity: [], created: new Date().toISOString() };
       await insert(g);
     } else if (action === 'join') {
       if (!s.authenticated) return response({ error: 'Sign in to join a Samiti.', signIn: true }, s, 401);
@@ -76,6 +79,7 @@ export async function POST(req: Request) {
       else row = await db().prepare('SELECT * FROM samiti_groups WHERE invite = ?').bind(code).first<Row>();
       if (!row) throw new Error('That invite code was not found. Check it with your group admin.');
       const g: Group = JSON.parse(row.data);
+      if (g.guestOnly) return response({ error: 'This circle belongs to a personal demo.' }, s, 403);
       if (!g.members.some(m => m.id === s.id)) {
         if (g.members.length >= 100) throw new Error('This Samiti has reached its 100-member limit.');
         g.members.push({ id: s.id, name: s.name, saved: 0, interest: 0 });

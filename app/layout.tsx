@@ -5,6 +5,7 @@ import "./account.css";
 import "./polish.css";
 import "./screen-layout.css";
 import "./journeys.css";
+import "./welcome.css";
 
 export const metadata: Metadata = {
   title: "Digital Samiti · Grow together",
