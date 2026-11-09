@@ -1,9 +1,13 @@
-import { Group, loanTotal, monthKey, pool, round, groupSavings } from './model';
+import { Group, loanTotal, monthKey, pool, round, groupSavings, validReceivingWallet, walletAddress } from './model';
 import { changeAutoPay, processAutoPay } from './autopay';
 
 export function updateGroup(g: Group, userId: string, action: string, input: Record<string, unknown>): Group {
   const member = g.members.find(m => m.id === userId);
   if (!member) throw new Error('Only group members can do that.');
+  if (action === 'propose-shared-wallet' || action === 'review-shared-wallet') {
+    updateSharedWallet(g, userId, action, input);
+    return g;
+  }
   if (g.demo === false) throw new Error('Mainnet Samitis only accept verified Nimiq contributions.');
   const activity = (label: string, amount: number, type: 'contribution' | 'loan' | 'repayment') => g.activity.unshift({ id: crypto.randomUUID(), member: member.name, label, amount, type, at: new Date().toISOString() });
   if (action === 'autopay') {
@@ -54,4 +58,41 @@ export function updateGroup(g: Group, userId: string, action: string, input: Rec
     activity('Loan installment repaid', payment, 'repayment');
   } else throw new Error('Unknown action.');
   return g;
+}
+
+function updateSharedWallet(g: Group, userId: string, action: string, input: Record<string, unknown>) {
+  const signer = walletAddress(userId);
+  if (g.demo !== false || !signer) throw new Error('Shared wallets are available in wallet Samitis.');
+
+  if (action === 'propose-shared-wallet') {
+    if (userId !== g.owner) throw new Error('Only the Samiti owner can link a shared wallet.');
+    if (typeof input.address !== 'string' || input.address.length > 60) throw new Error('Enter a valid Nimiq receiving address.');
+    const address = input.address.toUpperCase().replace(/\s/g, '');
+    if (address === signer) throw new Error('Use the shared wallet address from Nimiq Multisig, separate from your sign-in wallet.');
+    if (!validReceivingWallet(address, signer)) throw new Error('Enter a valid Nimiq receiving address.');
+
+    const coSigner = g.members.find(m => m.id === input.coSigner && m.id !== userId);
+    const coSignerAddress = coSigner && walletAddress(coSigner.id);
+    if (!coSigner || !coSignerAddress) throw new Error('Choose a co-signer who has joined this Samiti.');
+    if (coSignerAddress === address) throw new Error('Use a shared address separate from the co-signer’s sign-in wallet.');
+    g.sharedWallet = { id: crypto.randomUUID(), address, coSigner: coSigner.id, status: 'pending' };
+    return;
+  }
+
+  const review = g.sharedWallet;
+  if (!review || review.status !== 'pending' || review.id !== input.reviewId) {
+    throw new Error('This wallet review changed. Refresh and check the latest address.');
+  }
+  if (userId === g.owner || userId !== review.coSigner) throw new Error('Only the selected co-signer can review this address.');
+  if (typeof input.matches !== 'boolean') throw new Error('Choose whether the address matches.');
+  if (!input.matches) {
+    review.status = 'mismatch';
+    return;
+  }
+
+  // Older payment attempts used the group's address directly. Preserve their
+  // original recipient before activating a replacement address.
+  for (const intent of Object.values(g.contributionIntents ?? {})) intent.recipient ??= g.wallet;
+  g.wallet = review.address;
+  review.status = 'confirmed';
 }

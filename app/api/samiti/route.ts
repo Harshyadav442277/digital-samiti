@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { walletIdentity } from '@/lib/wallet-auth';
 import { boundedBody } from '@/lib/bounded-body';
 import { changeMainnetContribution, isMainnetAction } from '../../mainnet-contribution';
-import { Group, validReceivingWallet, round, groupInWorkspace, walletAddress } from '../../model';
+import { Group, round, groupInWorkspace, walletAddress } from '../../model';
 import { updateGroup } from '../../domain';
 import { z } from 'zod';
 
@@ -67,14 +67,11 @@ export async function POST(req: Request) {
     } else if (action === 'create') {
       const data = createGroupSchema.parse(input);
       if (!s.authenticated && data.visibility !== 'private') return response({ error: 'Demo circles are personal and private.' }, s, 403);
-      const sender = walletAddress(s.id);
-      const demo = !sender;
-      if (sender && !validReceivingWallet(data.wallet, sender)) throw new Error('Enter a valid receiving address separate from your Nimiq Pay wallet.');
-      if (demo) data.wallet = '';
+      const demo = !walletAddress(s.id);
       if (round(data.monthly) !== data.monthly) throw new Error('Use up to 2 decimal places for contributions.');
       const count = await db().prepare('SELECT COUNT(*) AS n FROM samiti_groups WHERE owner = ?').bind(s.id).first<{ n: number }>();
       if ((count?.n ?? 0) >= 25) throw new Error('You can create up to 25 Samitis.');
-      const g: Group = { ...data, id: crypto.randomUUID(), owner: s.id, invite: crypto.randomUUID().replace(/-/g, '').toUpperCase(), demo, guestOnly: !s.authenticated, members: [{ id: s.id, name: s.name, saved: 0, interest: 0 }], loans: [], activity: [], created: new Date().toISOString() };
+      const g: Group = { ...data, wallet: '', id: crypto.randomUUID(), owner: s.id, invite: crypto.randomUUID().replace(/-/g, '').toUpperCase(), demo, guestOnly: !s.authenticated, members: [{ id: s.id, name: s.name, saved: 0, interest: 0 }], loans: [], activity: [], created: new Date().toISOString() };
       await insert(g);
     } else if (action === 'join') {
       if (!s.authenticated) return response({ error: 'Sign in to join a Samiti.', signIn: true }, s, 401);

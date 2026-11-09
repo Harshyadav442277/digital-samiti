@@ -7,8 +7,9 @@ export type AutoPayPlan = { id: string; mode: 'demo'; status: 'active' | 'paused
 export type Payment = { hash: string; memberId: string; amount: number; recipient: string; at: string; month: string } & (
   { network: 'testnet'; status: 'submitted_unverified' } | { network: 'mainnet'; status: 'confirmed' }
 );
-export type ContributionIntent = { attempt: string; reference: string; month: string; minBlock: number };
-export type Group = { id: string; owner: string; name: string; description: string; visibility: 'public' | 'private'; color: string; icon: string; monthly: number; target: number; rate: number; months: number; threshold: number; rules: string; wallet: string; invite: string; demo: boolean; guestOnly?: boolean; members: Member[]; loans: Loan[]; activity: Activity[]; autoPay?: Record<string, AutoPayPlan>; payments?: Payment[]; contributionIntents?: Record<string, ContributionIntent>; created: string };
+export type ContributionIntent = { attempt: string; reference: string; month: string; minBlock: number; recipient?: string };
+export type SharedWalletReview = { id: string; address: string; coSigner: string; status: 'pending' | 'mismatch' | 'confirmed' };
+export type Group = { id: string; owner: string; name: string; description: string; visibility: 'public' | 'private'; color: string; icon: string; monthly: number; target: number; rate: number; months: number; threshold: number; rules: string; wallet: string; sharedWallet?: SharedWalletReview; invite: string; demo: boolean; guestOnly?: boolean; members: Member[]; loans: Loan[]; activity: Activity[]; autoPay?: Record<string, AutoPayPlan>; payments?: Payment[]; contributionIntents?: Record<string, ContributionIntent>; created: string };
 export type AppState = { groups: Group[]; user: { id: string; name: string; authenticated: boolean }; publicGroups: { id: string; name: string; description: string; monthly: number; count: number; color: string; icon: string }[] };
 export type SamitiAction = (action: string, payload?: Record<string, unknown>, message?: string, close?: boolean) => Promise<AppState | false>;
 export const money = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n);
@@ -33,6 +34,14 @@ export function walletAddress(userId: string) {
 export function validReceivingWallet(wallet: string, sender: string) {
   const recipient = wallet.toUpperCase().replace(/\s/g, '');
   return validAddress(recipient) && recipient !== sender && recipient !== 'NQ07' + '0'.repeat(32);
+}
+
+export function sharedWalletReady(group: Group) {
+  return group.sharedWallet?.status === 'confirmed' && group.sharedWallet.address === group.wallet;
+}
+
+export function canOpenContribution(group: Group, userId: string) {
+  return group.demo !== false || sharedWalletReady(group) || Boolean(group.contributionIntents?.[userId]);
 }
 
 export function groupInWorkspace(group: Group, userId: string) {

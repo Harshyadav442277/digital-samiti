@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { HashedTimeLockedContract } from '@nimiq/core';
-import { type Group, monthKey, round, validReceivingWallet, walletAddress } from './model';
+import { type Group, monthKey, round, sharedWalletReady, validReceivingWallet, walletAddress } from './model';
 
 const hashSchema = z.string().regex(/^[a-f0-9]{64}$/i).transform(hash => hash.toLowerCase());
 const mainnet = z.literal('MainAlbatross');
@@ -68,6 +68,8 @@ export async function changeMainnetContribution(g: Group, userId: string, action
   const intent = g.contributionIntents?.[userId];
   if (action === 'mainnet-prepare') {
     const month = monthKey();
+    if (!sharedWalletReady(g)) throw new Error('Contributions open after a co-signer confirms the shared wallet.');
+    if (input.recipient !== g.wallet) throw new Error('The receiving address changed. Refresh and review it before paying.');
     if (intent) throw new Error('Check the existing payment before starting another.');
     if (member.paidMonth === month) throw new Error('Your contribution is already paid for this month.');
     if (!validReceivingWallet(g.wallet, sender)) {
@@ -80,7 +82,7 @@ export async function changeMainnetContribution(g: Group, userId: string, action
     if (!Array.isArray(history)) throw new Error('The verification node cannot read mainnet transaction history.');
     g.contributionIntents ??= {};
     g.contributionIntents[userId] = {
-      attempt, reference: 'samiti-' + randomUUID(), month, minBlock: head.number,
+      attempt, reference: 'samiti-' + randomUUID(), month, minBlock: head.number, recipient: g.wallet,
     };
     return;
   }
@@ -93,10 +95,11 @@ export async function changeMainnetContribution(g: Group, userId: string, action
   const hash = hashSchema.parse(input.hash);
   if (g.payments?.some(p => p.network === 'mainnet' && p.hash === hash && p.memberId === userId)) return;
   if (!intent) throw new Error('There is no open contribution to verify.');
+  const recipient = intent.recipient ?? g.wallet;
   const result = transfer.safeParse(await rpc('getTransactionByHash', [hash]));
   const reference = Buffer.from(intent.reference, 'utf8').toString('hex');
   const matches = (tx: z.infer<typeof transfer>) => tx.hash === hash && signedBy(tx, sender)
-    && address(tx.to) === address(g.wallet) && tx.value === Math.round(g.monthly * 100000)
+    && address(tx.to) === address(recipient) && tx.value === Math.round(g.monthly * 100000)
     && tx.recipientData.toLowerCase() === reference && tx.blockNumber >= intent.minBlock;
   if (!result.success || !matches(result.data)) {
     throw new Error('That transaction does not match this contribution. Check your wallet history for the correct hash.');
@@ -118,7 +121,7 @@ export async function changeMainnetContribution(g: Group, userId: string, action
   if (!member.paidMonth || member.paidMonth < intent.month) member.paidMonth = intent.month;
   const at = new Date(included.data.timestamp).toISOString();
   g.payments ??= [];
-  g.payments.unshift({ hash, memberId: userId, amount: g.monthly, recipient: g.wallet, network: 'mainnet', status: 'confirmed', at, month: intent.month });
+  g.payments.unshift({ hash, memberId: userId, amount: g.monthly, recipient, network: 'mainnet', status: 'confirmed', at, month: intent.month });
   g.activity.unshift({ id: hash, member: member.name, label: 'Confirmed Nimiq contribution', amount: g.monthly, at, type: 'contribution' });
 }
 

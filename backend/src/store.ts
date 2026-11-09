@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { MongoClient, MongoServerError, type Collection } from 'mongodb';
 import { z } from 'zod';
-import { type AppState, type Group, round, validReceivingWallet, groupInWorkspace, walletAddress } from '../../app/model';
+import { type AppState, type Group, round, groupInWorkspace, walletAddress } from '../../app/model';
 import { updateGroup } from '../../app/domain';
 import { changeMainnetContribution, isMainnetAction } from '../../app/mainnet-contribution';
 import { createGroupSchema } from '../../app/group-input';
@@ -116,10 +116,7 @@ export class SamitiStore {
           throw new ApiError(403, 'Demo Samitis are personal and private. Create an account to share a circle.');
         }
         const groupId = requestId!;
-        const sender = walletAddress(identity.id);
-        const demo = !sender;
-        if (sender && !validReceivingWallet(data.wallet, sender)) throw new ApiError(400, 'Enter a valid receiving address separate from your Nimiq Pay wallet.');
-        if (demo) data.wallet = '';
+        const demo = !walletAddress(identity.id);
         if (round(data.monthly) !== data.monthly) throw new ApiError(400, 'Use up to 2 decimals for contributions.');
         await this.client.withSession(session => session.withTransaction(async () => {
           const existing = await this.groups.findOne({ _id: groupId }, { session });
@@ -132,7 +129,7 @@ export class SamitiStore {
           });
           if (!count || count.groups > 25) throw new ApiError(400, 'You can create up to 25 Samitis.');
           const group: Group = {
-            ...data, id: groupId, owner: identity.id, invite: randomUUID().replace(/-/g, '').toUpperCase(),
+            ...data, wallet: '', id: groupId, owner: identity.id, invite: randomUUID().replace(/-/g, '').toUpperCase(),
             demo, guestOnly: !identity.authenticated, members: [{ id: identity.id, name: identity.name, saved: 0, interest: 0 }],
             loans: [], activity: [], created: new Date().toISOString(),
           };

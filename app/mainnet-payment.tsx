@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle, ShieldCheck, Wallet } from 'lucide-react';
 import { NimiqProviderError } from '@nimiq/mini-app-sdk';
-import { type Group, type SamitiAction, money, monthKey, walletAddress } from './model';
+import { type Group, type SamitiAction, money, monthKey, sharedWalletReady, walletAddress } from './model';
 import { mainnetProvider } from './wallet-sign-in';
 
 export function MainnetPayment({ group, userId, busy, setBusy, setError, action }: {
@@ -21,7 +21,7 @@ export function MainnetPayment({ group, userId, busy, setBusy, setError, action 
   }, [intent?.reference]);
 
   async function pay() {
-    if (paying.current || busy || paid || intent) return;
+    if (paying.current || busy || paid || intent || !sharedWalletReady(group)) return;
     paying.current = true;
     setBusy(true);
     setError('');
@@ -34,14 +34,14 @@ export function MainnetPayment({ group, userId, busy, setBusy, setError, action 
       if (accounts.includes(group.wallet.toUpperCase().replace(/\s/g, ''))) throw new Error('The receiving address must be separate from your Nimiq Pay wallet.');
       setBusy(false);
       const requestId = crypto.randomUUID();
-      const state = await action('mainnet-prepare', { groupId: group.id, requestId }, '', false);
+      const state = await action('mainnet-prepare', { groupId: group.id, requestId, recipient: group.wallet }, '', false);
       if (!state) return;
       const prepared = state.groups.find(item => item.id === group.id)?.contributionIntents?.[userId];
-      if (!prepared || prepared.attempt !== requestId) throw new Error('An existing payment is open. Check it before paying again.');
+      if (!prepared || prepared.attempt !== requestId || prepared.recipient !== group.wallet) throw new Error('An existing payment is open. Check it before paying again.');
       reference = prepared.reference;
       setBusy(true);
       const submitted = await nimiq.sendBasicTransactionWithData({
-        recipient: group.wallet, value: Math.round(group.monthly * 100000), data: reference,
+        recipient: prepared.recipient, value: Math.round(group.monthly * 100000), data: reference,
       });
       if (typeof submitted !== 'string' || !/^[a-f0-9]{64}$/i.test(submitted)) {
         throw new Error('Check Nimiq Pay history for the transaction hash before sending another payment.');
@@ -79,14 +79,14 @@ export function MainnetPayment({ group, userId, busy, setBusy, setError, action 
 
   return <>
     <div className="info-note"><ShieldCheck size={20}/><span>Send real NIM to this Samiti’s receiving wallet. Check the amount and address in Nimiq Pay. Your savings update after mainnet confirmation.</span></div>
-    <label>Receiving wallet<input value={group.wallet} readOnly/></label>
+    <label>Receiving wallet<input value={intent?.recipient ?? group.wallet} readOnly/></label>
     {intent ? <>
       <p role="status">Payment started for {intent.month}. Check Nimiq Pay history if you need the hash.</p>
       <label>Transaction hash<input value={hash} maxLength={64} autoComplete="off" spellCheck={false} disabled={busy} onChange={event => setHash(event.target.value)}/></label>
       <button className="button primary full" type="button" disabled={busy || !/^[a-f0-9]{64}$/i.test(hash.trim())} onClick={verify}>
         {busy && <LoaderCircle size={17} className="spin"/>} Check mainnet confirmation
       </button>
-    </> : <button className="button primary full" type="button" disabled={busy || paid} onClick={pay}>
+    </> : <button className="button primary full" type="button" disabled={busy || paid || !sharedWalletReady(group)} onClick={pay}>
       {busy ? <LoaderCircle size={17} className="spin"/> : <Wallet size={17}/>}
       {paid ? 'Already paid this month' : `Pay ${money(group.monthly)} NIM with Nimiq Pay`}
     </button>}

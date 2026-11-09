@@ -184,7 +184,10 @@ test('the demo ledger rejects wallet payment hashes', async () => {
 test('mainnet contributions require the matching finalized transfer from the signed-in wallet', async () => {
   const wallet = KeyPair.generate();
   const user = 'nim-' + wallet.toAddress().toUserFriendlyAddress().replaceAll(' ', '');
+  const coSigner = 'nim-' + KeyPair.generate().toAddress().toUserFriendlyAddress().replaceAll(' ', '');
+  const otherMember = 'nim-' + KeyPair.generate().toAddress().toUserFriendlyAddress().replaceAll(' ', '');
   const recipient = KeyPair.generate().toAddress().toUserFriendlyAddress();
+  const normalized = recipient.replaceAll(' ', '');
   const sender = KeyPair.generate();
   const signed = (key: KeyPair) => SignatureProof.singleSig(
     key.publicKey, Signature.create(key.privateKey, key.publicKey, new Uint8Array([1])),
@@ -212,20 +215,59 @@ test('mainnet contributions require the matching finalized transfer from the sig
   try {
     const created = await request('/api/samiti', { user, body: action('create', {
       name: 'Mainnet circle', monthly: 1, target: 100, rate: 0, months: 6,
-      threshold: 60, visibility: 'public', color: 'peach', icon: 'users', rules: '', wallet: recipient,
+      threshold: 60, visibility: 'public', color: 'peach', icon: 'users', rules: '',
     }) });
     assert.equal(created.response.status, 200, JSON.stringify(created.data));
     const group = created.data.groups[0];
     assert.equal(group.demo, false);
+    assert.equal(group.wallet, '');
     const unrelated = await request('/api/samiti', { user: 'legacy-user', body: action('join', { code: group.invite }) });
     assert.equal(unrelated.response.status, 403);
     const simulate = await request('/api/samiti', { user, body: action('contribute', { groupId: group.id }) });
     assert.equal(simulate.response.status, 400);
-    const prepared = await request('/api/samiti', { user, body: action('mainnet-prepare', { groupId: group.id }) });
+    const act = (actor: string, name: string, values: Record<string, unknown> = {}) =>
+      request('/api/samiti', { user: actor, body: action(name, { groupId: group.id, ...values }) });
+    const prepare = (address = normalized) => act(user, 'mainnet-prepare', { recipient: address });
+    const propose = (actor = user, address = recipient, signer = coSigner) =>
+      act(actor, 'propose-shared-wallet', { address, coSigner: signer });
+    const review = (actor: string, reviewId: string, matches = true) =>
+      act(actor, 'review-shared-wallet', { reviewId, matches });
+
+    assert.match((await prepare()).data.error, /co-signer confirms/);
+    assert.equal((await propose()).response.status, 400);
+    for (const actor of [coSigner, otherMember]) {
+      assert.equal((await act(actor, 'join', { code: group.invite })).response.status, 200);
+    }
+    assert.equal((await propose(otherMember)).response.status, 400);
+    assert.equal((await propose(user, recipient, user)).response.status, 400);
+    assert.match((await propose(user, user.slice(4))).data.error, /sign-in wallet/);
+    const proposed = await propose();
+    assert.equal(proposed.response.status, 200, JSON.stringify(proposed.data));
+    const firstReview = proposed.data.groups[0].sharedWallet.id;
+    assert.match((await prepare()).data.error, /co-signer confirms/);
+    for (const actor of [user, otherMember]) {
+      assert.equal((await review(actor, firstReview)).response.status, 400);
+    }
+    assert.equal((await review(coSigner, firstReview, false)).data.groups[0].sharedWallet.status, 'mismatch');
+    assert.match((await prepare()).data.error, /co-signer confirms/);
+
+    const revised = await propose();
+    const latestReview = revised.data.groups[0].sharedWallet.id;
+    assert.equal((await review(coSigner, firstReview)).response.status, 400);
+    const approved = await review(coSigner, latestReview);
+    assert.equal(approved.response.status, 200, JSON.stringify(approved.data));
+    assert.equal(approved.data.groups[0].wallet, normalized);
+    assert.match((await prepare('stale address')).data.error, /receiving address changed/);
+
+    const prepared = await prepare();
     assert.equal(prepared.response.status, 200, JSON.stringify(prepared.data));
     const intent = prepared.data.groups[0].contributionIntents[user];
-    const duplicate = await request('/api/samiti', { user, body: action('mainnet-prepare', { groupId: group.id }) });
+    const duplicate = await prepare();
     assert.equal(duplicate.response.status, 400);
+    const replacement = KeyPair.generate().toAddress().toUserFriendlyAddress();
+    const pendingReplacement = await propose(user, replacement);
+    assert.match((await prepare()).data.error, /co-signer confirms/);
+    assert.equal((await review(coSigner, pendingReplacement.data.groups[0].sharedWallet.id)).response.status, 200);
     const check = () => request('/api/samiti', { user, body: action('mainnet-confirm', { groupId: group.id, hash }) });
     const transfer = {
       hash, from: sender.toAddress().toUserFriendlyAddress(), to: recipient, fromType: 2, toType: 0,
@@ -250,6 +292,8 @@ test('mainnet contributions require the matching finalized transfer from the sig
       assert.equal(result.data.groups[0].members[0].saved, 1);
       assert.equal(result.data.groups[0].payments.length, 1);
       assert.equal(result.data.groups[0].payments[0].status, 'confirmed');
+      assert.equal(result.data.groups[0].payments[0].recipient, normalized);
+      assert.equal(result.data.groups[0].wallet, replacement.replaceAll(' ', ''));
     }
   } finally {
     await new Promise<void>(resolve => rpc.close(() => resolve()));

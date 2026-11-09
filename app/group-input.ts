@@ -12,5 +12,4 @@ export const createGroupSchema = z.object({
   color: z.enum(['peach', 'green', 'blue', 'purple']),
   icon: z.enum(['graduation', 'heart', 'sparkles', 'users']),
   rules: z.string().trim().max(1500),
-  wallet: z.string().trim().max(60).default(''),
 });

@@ -4,6 +4,8 @@ Production: https://digital-samiti.vercel.app
 
 This target uses Next.js 16, Nimiq Pay wallet sign-in, a Node.js/Express API with MongoDB, and Vercel Cron. It separates mainnet contributions from the guest demo ledger.
 
+Wallet Samitis can invite members before linking a receiving address. The owner proposes the address from Nimiq Multisig and selects a co-signer who has joined the Samiti. Only that member can confirm the proposal. Existing wallet Samitis and replacement addresses require confirmation before starting new contributions. In-flight contributions can still be verified against their original recipient. Signers review the address in Nimiq Multisig and approve payouts there.
+
 ## Express and MongoDB backend
 
 An optional Node.js/Express 5 API now stores the ledger in MongoDB Atlas. See [backend setup and API documentation](backend/README.md). Run `npm run backend:build` and `npm run backend:start` from this directory after installing the backend's dependencies and setting its private environment values. `npm run backend:test` runs integration tests against a temporary Atlas database.
