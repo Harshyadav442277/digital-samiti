@@ -5,7 +5,7 @@ import { walletAddress, type AppState } from '../app/model';
 export const challengeCookie = 'samiti_wallet_challenge';
 export const sessionCookie = 'samiti_wallet';
 export const challengeSeconds = 300;
-export const sessionSeconds = 43200;
+export const sessionSeconds = 7 * 24 * 60 * 60;
 
 export function digest(value: string) {
   return createHash('sha256').update(value).digest('hex');

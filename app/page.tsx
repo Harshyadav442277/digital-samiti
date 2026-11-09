@@ -15,6 +15,7 @@ import { PendingPayments } from './pending-payments';
 import { GroupProgress } from './group-progress';
 import { ContributionReceipt } from './contribution-receipt';
 import { SharedWalletStatus } from './shared-wallet';
+import { WalletBalances } from './wallet-balances';
 import { StartScreen } from './start-screen';
 
 type View = 'overview' | 'groups' | 'loans' | 'wallet';
@@ -87,15 +88,36 @@ export default function DigitalSamiti() {
   useEffect(() => { void load(); const code = new URLSearchParams(location.search).get('invite'); if (code) { setInviteCode(code); setModal('join'); } }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4500); return () => clearTimeout(t); }, [toast]);
   useEffect(() => {
-    let disposed = false; const refresh = async () => {
-      if (!enteredRef.current || document.visibilityState !== 'visible' || busyRef.current) return;
+    let disposed = false;
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || !enteredRef.current || document.visibilityState !== 'visible' || busyRef.current) return;
+      refreshing = true;
       const version = mutationVersion.current;
-      try { const res = await fetch('/api/samiti'); if (!res.ok) throw new Error(); const data = await res.json() as AppState; if (!disposed && !busyRef.current && version === mutationVersion.current) { if (data.user.id !== userId) { location.reload(); return; } setState(data); setSyncStatus('Up to date'); } } catch { if (!disposed) setSyncStatus('Offline · showing saved data'); }
+      try {
+        const res = await fetch('/api/samiti');
+        if (!res.ok) throw new Error();
+        const data = await res.json() as AppState;
+        if (disposed || busyRef.current || version !== mutationVersion.current) return;
+        if (data.user.id !== userId) {
+          setModal(null);
+          setReceipt(null);
+          setToast('');
+          setEntered(data.user.authenticated);
+          if (wallet && !data.user.authenticated) setError('Your wallet session ended. Sign in with Nimiq Pay to continue.');
+        }
+        setState(data);
+        setSyncStatus('Up to date');
+      } catch {
+        if (!disposed) setSyncStatus('Offline · showing saved data');
+      } finally {
+        refreshing = false;
+      }
     };
     if (!userId) return;
     const timer = setInterval(refresh, 15000); window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
     return () => { disposed = true; clearInterval(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
-  }, [userId]);
+  }, [userId, wallet]);
   async function startDemo() {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -189,7 +211,7 @@ export default function DigitalSamiti() {
     </> : view === 'loans' ? demo ? <>
       <div className="page-heading"><div><div className="eyebrow">COMMUNITY IS YOUR SUPERPOWER</div><h1>Loans & votes<span className="heading-dot">.</span></h1><p>A helping hand, backed by people who know you.</p></div><button className="button primary" onClick={() => open('loan')}><Plus size={17} /> Request a loan</button></div><div className="ledger-live"><span className={syncStatus.startsWith('Offline') ? 'offline' : ''} />{syncStatus}<small>Group votes refresh every 15 seconds</small></div>{focusedLoan && <button className="back-link" onClick={() => navigate('loans')}><ArrowLeft size={17}/> All loans & votes</button>}<div className="tabs loan-tabs">{['All requests', 'Needs your vote', 'My loans'].map(t => <button key={t} className={loanTab === t ? 'selected' : ''} onClick={() => { setLoanTab(t); if (focusedLoan) navigate('loans'); }}>{t}{t === 'Needs your vote' && <span>{pendingVotes.length}</span>}</button>)}</div><div className="loan-grid">{visibleLoans.map(l => <LoanCard userId={userId} busy={busy} action={action} key={l.id} loan={l} />)}</div>{!visibleLoans.length && <div className="panel empty"><CheckCircle2 size={36} /><h3>{focusedLoan ? 'This loan is unavailable' : loanTab === 'My loans' ? 'A little support for your next step' : 'You’re all caught up'}</h3><p>{focusedLoan ? 'Go back to see the loans you can access.' : loanTab === 'My loans' ? 'Request a loan from your Samiti and let your community weigh in.' : 'There are no requests waiting here right now.'}</p>{loanTab === 'My loans' && <button className="button primary" onClick={() => open('loan')}>Request a loan</button>}</div>}
     </> : <div className="panel empty"><Vote size={35}/><h2>Loans & votes</h2><p>Lending is unavailable in the mainnet workspace.</p></div> : <>
-      <h1 className="sr-only">Wallet</h1><section className="wallet-summary purple"><div><span>Your savings across all Samitis</span><h2>{appearance.hideBalance?'••••':money(mySavings)} <small>NIM</small><button className="balance-privacy" aria-label={appearance.hideBalance?'Show balances':'Hide balances'} onClick={()=>updateAppearance({...appearance,hideBalance:!appearance.hideBalance})}>{appearance.hideBalance?<EyeOff size={17}/>:<Eye size={17}/>}</button></h2><p>+ {appearance.hideBalance?'••••':money(myInterest)} NIM in allocated interest</p></div><button className="wallet-card-connect" onClick={() => open('wallet')}><Wallet size={24} strokeWidth={1.8} /><span>{wallet ? 'Wallet account' : 'Wallet sign-in'}</span></button></section><div className="section-heading"><h2>Your contribution schedule</h2><span>Monthly · due on the 10th</span></div><ContributionSchedule demo={demo} groups={groups} userId={userId} open={open} download={downloadReminder} /><div className="info-note"><CalendarDays size={20} /><span>{demo ? 'Demo Auto Pay checks due plans daily at 9:00 am IST.' : 'Review and approve each contribution in Nimiq Pay.'}</span></div><>{receipts.length > 0 && <><div className="section-heading"><h2>Contribution receipts</h2></div><section className="panel receipt-list">{receipts.map(p => <div className="receipt-row" key={p.hash}><div><strong>{p.groupName} · {money(p.amount)} NIM</strong><span>Submitted · unverified · testnet</span></div><code>{p.hash}</code><p>Receiving address: {p.recipient}. {p.network === 'testnet' && 'This receipt has not credited your savings.'}</p></div>)}</section></>}</><div className="section-heading"><h2>All activity</h2><span>Sample ledger · NIM</span></div><section className="panel"><ActivityLedger items={activities} limit={1000} /></section>
+      <h1 className="sr-only">Wallet</h1><section className="wallet-summary purple"><div><span>{demo ? 'Your demo savings across all Samitis' : 'Your confirmed Samiti contributions'}</span><h2>{appearance.hideBalance?'••••':money(mySavings)} <small>NIM</small><button className="balance-privacy" aria-label={appearance.hideBalance?'Show balances':'Hide balances'} onClick={()=>updateAppearance({...appearance,hideBalance:!appearance.hideBalance})}>{appearance.hideBalance?<EyeOff size={17}/>:<Eye size={17}/>}</button></h2><p>+ {appearance.hideBalance?'••••':money(myInterest)} NIM in allocated interest</p></div><button className="wallet-card-connect" onClick={() => open('wallet')}><Wallet size={24} strokeWidth={1.8} /><span>{wallet ? 'Wallet account' : 'Wallet sign-in'}</span></button></section>{wallet && <WalletBalances key={wallet} wallet={wallet} hidden={appearance.hideBalance} />}<div className="section-heading"><h2>Your contribution schedule</h2><span>Monthly · due on the 10th</span></div><ContributionSchedule demo={demo} groups={groups} userId={userId} open={open} download={downloadReminder} /><div className="info-note"><CalendarDays size={20} /><span>{demo ? 'Demo Auto Pay checks due plans daily at 9:00 am IST.' : 'Review and approve each contribution in Nimiq Pay.'}</span></div><>{receipts.length > 0 && <><div className="section-heading"><h2>Contribution receipts</h2></div><section className="panel receipt-list">{receipts.map(p => <div className="receipt-row" key={p.hash}><div><strong>{p.groupName} · {money(p.amount)} NIM</strong><span>Submitted · unverified · testnet</span></div><code>{p.hash}</code><p>Receiving address: {p.recipient}. {p.network === 'testnet' && 'This receipt has not credited your savings.'}</p></div>)}</section></>}</><div className="section-heading"><h2>All activity</h2><span>Sample ledger · NIM</span></div><section className="panel"><ActivityLedger items={activities} limit={1000} /></section>
     </>}
     {view !== 'overview' && <footer className="page-footer"><span><Sprout size={14} /> Made for your circle.</span><span>Powered by community. Built with Nimiq.</span><button onClick={() => open('help')}>A little help <ArrowUpRight size={12} /></button></footer>}
     </>}
