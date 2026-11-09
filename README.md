@@ -2,29 +2,28 @@
 
 Production: https://digital-samiti.vercel.app
 
-This target preserves the mobile UI, transparent vote ledgers, group contributions, lending simulations, invitations, and demo Auto Pay. It uses Next.js 16, a Node.js/Express API with MongoDB Atlas, Managed Better Auth email/password sign-in, and Vercel Cron.
+This target uses Next.js 16, Nimiq Pay wallet sign-in, a Node.js/Express API with MongoDB, and Vercel Cron. It separates mainnet contributions from the guest demo ledger.
 
 ## Express and MongoDB backend
 
 An optional Node.js/Express 5 API now stores the ledger in MongoDB Atlas. See [backend setup and API documentation](backend/README.md). Run `npm run backend:build` and `npm run backend:start` from this directory after installing the backend's dependencies and setting its private environment values. `npm run backend:test` runs integration tests against a temporary Atlas database.
 
-The frontend uses Express when its server environment has `SAMITI_API_URL` and `SAMITI_API_SECRET`. Production is connected to the Express service at https://digital-samiti-api.vercel.app. On 7 November 2026, 64 existing Postgres groups and 37 unexpired hashed guest sessions were copied and verified in MongoDB before the frontend was promoted. Postgres source records were preserved. Email/password sessions continue through Neon Auth.
+The frontend uses Express when its server environment has `SAMITI_API_URL` and `SAMITI_API_SECRET`. Production is connected to the Express service at https://digital-samiti-api.vercel.app. On 7 November 2026, 64 existing Postgres groups and 37 unexpired hashed guest sessions were copied and verified in MongoDB before the frontend was promoted. Postgres source records were preserved.
 
 Validation on 7 November 2026 covered ten Atlas integration tests, six financial/progress regression tests, both builds, and contribution/voting/repayment persistence through the frontend API routes.
 
-The original owner-private Sites deployment remains separate, including its data. Its private identity/service headers are not accepted as authentication on Vercel. Anonymous demo sessions use hashed, opaque bearer cookies independent of member IDs. Signed-in identity comes from Managed Better Auth.
+The original owner-private Sites deployment remains separate, including its data. Anonymous demo sessions use hashed, opaque bearer cookies independent of member IDs. The wallet identity comes from a server-verified signature over a short-lived, single-use challenge.
 
-Required server-only environment variables: `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, and `CRON_SECRET`. They are configured in Vercel; local values are in ignored `.env.local`. Never commit them. Database schema is in `migrations/001_samiti.sql`. The project uses the free Neon organization and 0.25 CU compute.
+Set `SAMITI_WALLET_SECRET` to a random secret of at least 32 characters and set a separate `CRON_SECRET`. With Express, set `SAMITI_API_URL` and `SAMITI_API_SECRET` on Next.js. With Postgres, set `DATABASE_URL` and apply the SQL files in `migrations/` in order. Keep local secrets in ignored `.env.local`.
 
 ```powershell
 npm ci
 npm run dev
 npm run build
 node scripts/check-runtime.mjs http://localhost:3000
-vercel deploy --prod --yes --archive=tgz
 ```
 
-The runtime check creates isolated sample sessions and uses the local cron secret for its scheduler access check. It checks durable contributions, reload persistence, duplicate prevention, membership, spoofed identity-header rejection, vote audit, Auto Pay lifecycle, sign-in requirements, cron protection, and the auth session endpoint. It passed against the production alias on 5 November 2026. Actual signup/email delivery was not exercised by the agent.
+The runtime check creates isolated demo sessions and verifies demo persistence, duplicate prevention, cron protection, and wallet sign-in using a generated test key.
 
 The Vercel cron expression is `30 3 * * *` (nominally 9:00 am IST), with the bearer credential supplied through `CRON_SECRET`. Only demo contributions are processed; no real-wallet debit mandate, custody, or live lending is enabled.
 
@@ -50,6 +49,14 @@ Backend deployment `dpl_4A8cQMydVF1EFJoHLjzt3KZ3aRBq` and frontend deployment `d
 
 ## Empty startup and demo
 
-The startup page offers Create account, Sign in, and Start an empty demo. New members start with no Samitis, balances, or transactions. Each fresh demo receives an isolated guest session, can create private practice Samitis at zero, and records only contributions entered by the user. Bootstrap no longer inserts sample groups. Generated sample groups were removed from MongoDB and legacy Postgres, with a private recovery copy under ignored outputs/. User-created circles were retained.
+The startup page offers Sign in with Nimiq Pay and Start an empty demo. New members start with no Samitis, balances, or transactions. Each fresh demo receives an isolated guest session and can create private practice Samitis. All demo payments use the sample ledger.
 
-Validation includes eleven Atlas API tests, the local frontend journey, signup input validation, and desktop/320px layout checks. Real email verification was not exercised during agent testing.
+## Wallet workspace and mainnet contributions
+
+Open the app inside an up-to-date Nimiq Pay app on Mainnet. Sign-in requests account sharing and message approval. The first verified sign-in opens a new wallet workspace. Legacy email accounts and their simulated groups stay under their original identities. A wallet sign-in opens a separate ledger.
+
+Set `NIMIQ_MAINNET_RPC_URL` on Express when using MongoDB, or on Next.js when using Postgres. Use an HTTPS Nimiq Mainnet history node with the transaction index enabled. If it requires credentials, set `NIMIQ_MAINNET_RPC_AUTH` to the full Authorization header value. The server checks node readiness before opening a payment. It credits contributions after verifying a successful, finalized mainnet transfer with the expected signer, destination, amount, and contribution reference.
+
+Choose a dedicated receiving wallet controlled by the group. The ledger records confirmed contributions, and whoever controls the receiving wallet can spend the funds. To verify a pending payment, use its transaction hash from Nimiq Pay history. Mainnet lending and automatic debits are unavailable.
+
+Deploy the updated Express service before the Next.js frontend when using MongoDB. Wallet sign-in requires the new protected challenge endpoint.

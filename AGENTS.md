@@ -1,13 +1,14 @@
 # Local project instructions
 
-Digital Samiti's Vercel frontend uses Next.js and Managed Better Auth. Ledger storage uses
+Digital Samiti's Vercel frontend uses Next.js and Nimiq Pay wallet-signature authentication. Ledger storage uses
 the Node.js/Express MongoDB backend when SAMITI_API_URL is configured; otherwise it uses
 the existing Neon Postgres backend. See backend/README.md for setup and hosting.
 Keep SAMITI_API_SECRET server-only. Express accepts verified member identity only from
 the authenticated Next.js server. Never pass browser-supplied identity headers through.
 This public deployment must never trust Sites identity headers or Sites service bypass credentials.
 The Auto Pay cron requires its own CRON_SECRET. Preserve group membership checks and hashed guest sessions.
-All financial flows remain demo/testnet only. No wallet approvals or real debits during agent testing.
+Guest finance stays simulated. Wallet workspaces credit only verified mainnet contributions.
+Do not approve wallet prompts or perform real debits during agent testing.
 The original Cloudflare/Sites target lives in ../digital-samiti and is a separate deployment with separate data.
 
 Read the existing [project instructions](../CLAUDE.md) and respect their stated scope

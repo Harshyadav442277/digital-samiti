@@ -1,11 +1,12 @@
 import 'server-only';
-import { getChatGPTUser } from '../app/chatgpt-auth';
+import { walletIdentity } from './wallet-auth';
 
 export function usesExpressBackend() {
   return Boolean(process.env.SAMITI_API_URL);
 }
 
-export async function forwardToSamitiBackend(req: Request, scheduler = false) {
+export async function forwardToSamitiBackend(req: Request, mode: boolean | 'wallet-challenge' = false) {
+  const scheduler = mode === true;
   const base = process.env.SAMITI_API_URL;
   const secret = process.env.SAMITI_API_SECRET;
   if (!base || !secret) return Response.json({ error: 'Backend configuration is incomplete.' }, { status: 503 });
@@ -23,11 +24,11 @@ export async function forwardToSamitiBackend(req: Request, scheduler = false) {
   // Caller-supplied identity headers are deliberately never forwarded.
   if (scheduler) {
     headers.set('x-samiti-cron-authorization', req.headers.get('authorization') ?? '');
-  } else {
-    const user = await getChatGPTUser();
+  } else if (mode !== 'wallet-challenge') {
+    const user = walletIdentity(req);
     if (user) {
-      headers.set('x-samiti-user-id', user.userId);
-      headers.set('x-samiti-user-name', encodeURIComponent(user.fullName || user.email.split('@')[0]));
+      headers.set('x-samiti-user-id', user.id);
+      headers.set('x-samiti-user-name', encodeURIComponent(user.name));
     }
     const cookie = req.headers.get('cookie')?.match(/(?:^|;\s*)samiti_demo=[a-f0-9]{64}(?=;|$)/)?.[0]?.replace(/^;\s*/, '');
     if (cookie) headers.set('cookie', cookie);
@@ -52,7 +53,7 @@ export async function forwardToSamitiBackend(req: Request, scheduler = false) {
       headers.set('content-type', 'application/json');
     }
   }
-  target.pathname = scheduler ? '/api/autopay/run' : '/api/samiti';
+  target.pathname = scheduler ? '/api/autopay/run' : mode === 'wallet-challenge' ? '/api/wallet-challenge' : '/api/samiti';
   target.search = '';
   try {
     const upstream = await fetch(target, {

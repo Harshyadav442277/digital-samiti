@@ -1,8 +1,8 @@
 # Digital Samiti API
 
-Node.js 22+ and Express 5 API using MongoDB Atlas. It stores Samitis, membership, the demo financial ledger, immutable vote records, personal Auto Pay plans and hashed guest sessions. Financial operations reuse the frontend project's domain rules.
+Node.js 22+ and Express 5 API using MongoDB Atlas. It stores Samitis, membership, demo and mainnet contribution ledgers, vote records, personal demo Auto Pay plans, and hashed guest sessions.
 
-The Next.js app authenticates members using its existing Neon Auth session, then forwards their verified identity to Express over a server-only authenticated connection. Express requires `SAMITI_API_SECRET` before accepting identity headers. Browser requests use the same-origin Next.js routes. The service credential must stay out of client bundles.
+The Next.js app authenticates members using a server-verified Nimiq Pay wallet session, then forwards their verified identity to Express over a server-only authenticated connection. Express requires `SAMITI_API_SECRET` before accepting identity headers. Browser requests use the same-origin Next.js routes. The service credential must stay out of client bundles.
 
 ## Local setup
 
@@ -33,7 +33,8 @@ Restart the backend after this step to reload the shared cron credential. Then r
 | --- | --- | --- |
 | GET | `/health` | Database readiness with no credentials or account data |
 | GET | `/api/samiti` | Current member's groups and public group summaries |
-| POST | `/api/samiti` | Bootstrap, create, join, contribute, request a loan, vote, repay, manage demo Auto Pay and save unverified testnet receipts |
+| POST | `/api/samiti` | Create and join groups, run demo actions, or prepare and verify mainnet contributions |
+| POST | `/api/wallet-challenge` | Atomically consume a wallet sign-in challenge for the trusted frontend |
 | GET or POST | `/api/autopay/run` | Process due demo plans, requiring the separate cron credential |
 
 All API endpoints require `Authorization: Bearer <SAMITI_API_SECRET>`. Only the trusted frontend server adds `x-samiti-user-id` and the URI-encoded `x-samiti-user-name` after validating a signed-in session. Guest access uses an opaque, HttpOnly cookie whose hash is stored with an expiration date. The runner additionally requires `x-samiti-cron-authorization: Bearer <CRON_SECRET>`.
@@ -78,4 +79,4 @@ Deploy this service on a Node.js host with access to Atlas. Set its environment 
 
 The initial local database started as a new dataset. Before production cutover on 7 November 2026, the separate import script copied and verified 64 Postgres groups and retained 37 unexpired guest sessions. Email/password sign-in continues through Neon Auth. The Vercel frontend is now configured to use the hosted Express service. The owner approved an Atlas `0.0.0.0/0` network entry for the deployment, with database credentials still required.
 
-All balances, lending and automatic contributions use demo funds. Testnet hashes remain unverified receipts and do not credit savings.
+Demo lending and Auto Pay use simulated funds. Mainnet contributions require a synced mainnet history node with the transaction index enabled. Set `NIMIQ_MAINNET_RPC_URL` on this service and set `NIMIQ_MAINNET_RPC_AUTH` if the node requires an Authorization header.

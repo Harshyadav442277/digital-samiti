@@ -2,11 +2,11 @@
 
 import { ArrowRight, LoaderCircle, Sprout, Users, Wallet } from 'lucide-react';
 import { PiggyBank } from './friendly-art';
+import { WalletSignIn } from './wallet-sign-in';
 
 export function StartScreen({ busy, error, startDemo, returnTo }: {
   busy: boolean; error: string; startDemo: () => void; returnTo?: string;
 }) {
-  const suffix = returnTo ? '?return_to=' + encodeURIComponent(returnTo) : '';
   return <main className="welcome-page">
     <a className="welcome-brand" href="/"><span className="brand-mark"><Sprout size={26}/></span><strong>digital samiti<span>.</span></strong></a>
     <div className="welcome-grid">
@@ -19,9 +19,8 @@ export function StartScreen({ busy, error, startDemo, returnTo }: {
       <section className="welcome-card" aria-labelledby="welcome-title">
         <span className="modal-symbol"><Users size={26}/></span>
         <h2 id="welcome-title">Make yourself at home.</h2>
-        <p>Create an account to keep your circles across devices, or explore at your own pace.</p>
-        <a className="button primary full" href={'/sign-up' + suffix}>Create account <ArrowRight size={17}/></a>
-        <a className="button outline full" href={'/sign-in' + suffix}>Sign in</a>
+        <p>Connect your Nimiq Pay wallet to create or return to your account.</p>
+        <WalletSignIn returnTo={returnTo} disabled={busy}/>
         <div className="welcome-divider"><span/>or try it first<span/></div>
         <button className="welcome-demo" disabled={busy} onClick={startDemo}>
           <span className="insight-icon green"><Wallet size={21}/></span>
@@ -29,7 +28,7 @@ export function StartScreen({ busy, error, startDemo, returnTo }: {
           {busy ? <LoaderCircle className="spin" size={19}/> : <ArrowRight size={19}/>}
         </button>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <p className="welcome-note">Your demo is personal to this browser. Create your first Samiti and record practice contributions yourself. All savings and payments use demo funds.</p>
+        <p className="welcome-note">Your demo is personal to this browser. Create your first Samiti and record practice contributions yourself. Demo savings use sample funds.</p>
       </section>
     </div>
   </main>;

@@ -9,7 +9,7 @@ import "./welcome.css";
 
 export const metadata: Metadata = {
   title: "Digital Samiti · Grow together",
-  description: "Save with your people. Build a community savings circle, contribute monthly, and make lending decisions together.",
+  description: "Save with your people. Build a community savings circle, and contribute monthly with Nimiq Pay.",
   robots: { index: false, follow: false },
   icons: {
     icon: "/favicon.svg",

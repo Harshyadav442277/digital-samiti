@@ -4,9 +4,13 @@ export type VoteEntry = { memberId: string; name: string; approve: boolean; at: 
 export type Loan = { id: string; borrower: string; name: string; amount: number; reason: string; months: number; rate: number; status: 'voting' | 'approved' | 'rejected' | 'repaid'; votes: Record<string, boolean>; voteAudit?: VoteEntry[]; requestedAt?: string; decidedAt?: string; repaid: number; paidInstallments: number; interestRepaid?: number; electorate: string[]; threshold: number };
 export type AutoPayEvent = { at: string; type: 'enabled' | 'paused' | 'resumed' | 'cancelled' | 'contribution' | 'skipped'; label: string; amount?: number; period?: string };
 export type AutoPayPlan = { id: string; mode: 'demo'; status: 'active' | 'paused' | 'cancelled'; amount: number; day: number; nextDate: string; createdAt: string; lastRun?: string; history: AutoPayEvent[] };
-export type Payment = { hash: string; memberId: string; amount: number; recipient: string; network: 'testnet'; status: 'submitted_unverified'; at: string; month: string };
-export type Group = { id: string; owner: string; name: string; description: string; visibility: 'public' | 'private'; color: string; icon: string; monthly: number; target: number; rate: number; months: number; threshold: number; rules: string; wallet: string; invite: string; demo: boolean; guestOnly?: boolean; members: Member[]; loans: Loan[]; activity: Activity[]; autoPay?: Record<string, AutoPayPlan>; payments?: Payment[]; created: string };
+export type Payment = { hash: string; memberId: string; amount: number; recipient: string; at: string; month: string } & (
+  { network: 'testnet'; status: 'submitted_unverified' } | { network: 'mainnet'; status: 'confirmed' }
+);
+export type ContributionIntent = { attempt: string; reference: string; month: string; minBlock: number };
+export type Group = { id: string; owner: string; name: string; description: string; visibility: 'public' | 'private'; color: string; icon: string; monthly: number; target: number; rate: number; months: number; threshold: number; rules: string; wallet: string; invite: string; demo: boolean; guestOnly?: boolean; members: Member[]; loans: Loan[]; activity: Activity[]; autoPay?: Record<string, AutoPayPlan>; payments?: Payment[]; contributionIntents?: Record<string, ContributionIntent>; created: string };
 export type AppState = { groups: Group[]; user: { id: string; name: string; authenticated: boolean }; publicGroups: { id: string; name: string; description: string; monthly: number; count: number; color: string; icon: string }[] };
+export type SamitiAction = (action: string, payload?: Record<string, unknown>, message?: string, close?: boolean) => Promise<AppState | false>;
 export const money = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n);
 // Monthly contribution windows follow the app's Indian community calendar.
 export const monthKey = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 7);
@@ -21,6 +25,20 @@ export function validAddress(address: string) {
   let remainder = 0; for (const d of digits) remainder = (remainder * 10 + Number(d)) % 97;
   return remainder === 1;
 }
+export function walletAddress(userId: string) {
+  const address = userId.slice(4);
+  return /^nim-NQ[A-Z0-9]{34}$/.test(userId) && validAddress(address) ? address : null;
+}
+
+export function validReceivingWallet(wallet: string, sender: string) {
+  const recipient = wallet.toUpperCase().replace(/\s/g, '');
+  return validAddress(recipient) && recipient !== sender && recipient !== 'NQ07' + '0'.repeat(32);
+}
+
+export function groupInWorkspace(group: Group, userId: string) {
+  return (group.demo !== false) === !walletAddress(userId);
+}
+
 export function makeDemo(userId: string, name: string): Group[] {
   const names = ['Campus circle', 'Family & friends', 'The dream team'];
   const otherNames = ['Aditi Sharma', 'Rahul Mehta', 'Priya Patel', 'Arjun Singh', 'Neha Verma', 'Rohan Das', 'Isha Rao'];

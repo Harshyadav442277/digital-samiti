@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { Repeat2, ShieldCheck, Pause, Play, CalendarDays, Check, X, LoaderCircle } from 'lucide-react';
 import { Group, money } from './model';
 import { indiaDate, nextMonthlyDate } from './autopay';
-type Props = { group: Group; userId: string; busy: boolean; action: (a: string, p: Record<string, unknown>, message: string, close?: boolean) => Promise<boolean> };
+import type { SamitiAction } from './model';
+
+type Props = { group: Group; userId: string; busy: boolean; action: SamitiAction };
 export function AutoPayPanel({ group: g, userId, busy, action }: Props) {
   const plan = g.autoPay?.[userId]; const [day, setDay] = useState(plan?.day ?? 10); const [consent, setConsent] = useState(false);
   const managing = plan && plan.status !== 'cancelled'; const next = nextMonthlyDate(indiaDate(), day);

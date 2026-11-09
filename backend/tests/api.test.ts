@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
+import { KeyPair, Signature, SignatureProof } from '@nimiq/core';
 import { MongoClient } from 'mongodb';
 import type { Server } from 'node:http';
 import { configuration } from '../src/config';
@@ -162,7 +164,7 @@ test('invalid JSON, oversized requests, and Mongo operator objects are rejected'
   assert.equal(injection.response.status, 400);
 });
 
-test('testnet submission receipts never credit the savings ledger', async () => {
+test('the demo ledger rejects wallet payment hashes', async () => {
   const body = action('create', {
     name: 'Testnet circle', monthly: 100, target: 1000, rate: 6, months: 6,
     threshold: 60, visibility: 'private', color: 'peach', icon: 'users', rules: '',
@@ -174,9 +176,86 @@ test('testnet submission receipts never credit the savings ledger', async () => 
     user: 'test-receipts',
     body: action('payment-submitted', { groupId: created.data.groups[0].id, hash: 'a'.repeat(64) }),
   });
-  assert.equal(result.response.status, 200);
-  assert.equal(result.data.groups[0].payments[0].status, 'submitted_unverified');
-  assert.equal(result.data.groups[0].members[0].saved, 0);
+  assert.equal(result.response.status, 400);
+  const state = await request('/api/samiti', { user: 'test-receipts' });
+  assert.equal(state.data.groups[0].members[0].saved, 0);
+});
+
+test('mainnet contributions require the matching finalized transfer from the signed-in wallet', async () => {
+  const wallet = KeyPair.generate();
+  const user = 'nim-' + wallet.toAddress().toUserFriendlyAddress().replaceAll(' ', '');
+  const recipient = KeyPair.generate().toAddress().toUserFriendlyAddress();
+  const sender = KeyPair.generate();
+  const signed = (key: KeyPair) => SignatureProof.singleSig(
+    key.publicKey, Signature.create(key.privateKey, key.publicKey, new Uint8Array([1])),
+  ).serialize();
+  const proof = Buffer.concat([Buffer.from([1]), signed(sender), signed(wallet)]).toString('hex');
+  const hash = 'b'.repeat(64);
+  let headBatch = 8;
+  let tx: Record<string, unknown>;
+  const rpc = createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const { method, id } = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    const head = { network: 'MainAlbatross', timestamp: Date.now(), number: headBatch === 8 ? 250 : 310, batch: headBatch };
+    const data = method === 'getLatestBlock' ? head : method === 'getTransactionHashesByAddress' ? []
+      : method === 'getTransactionByHash' ? tx
+      : { ...head, number: 251, batch: 8, transactions: [tx] };
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ jsonrpc: '2.0', id, result: { data } }));
+  }).listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => rpc.once('listening', resolve));
+  const listen = rpc.address();
+  assert.ok(listen && typeof listen !== 'string');
+  const oldRpc = process.env.NIMIQ_MAINNET_RPC_URL;
+  process.env.NIMIQ_MAINNET_RPC_URL = 'http://127.0.0.1:' + listen.port;
+  try {
+    const created = await request('/api/samiti', { user, body: action('create', {
+      name: 'Mainnet circle', monthly: 1, target: 100, rate: 0, months: 6,
+      threshold: 60, visibility: 'public', color: 'peach', icon: 'users', rules: '', wallet: recipient,
+    }) });
+    assert.equal(created.response.status, 200, JSON.stringify(created.data));
+    const group = created.data.groups[0];
+    assert.equal(group.demo, false);
+    const unrelated = await request('/api/samiti', { user: 'legacy-user', body: action('join', { code: group.invite }) });
+    assert.equal(unrelated.response.status, 403);
+    const simulate = await request('/api/samiti', { user, body: action('contribute', { groupId: group.id }) });
+    assert.equal(simulate.response.status, 400);
+    const prepared = await request('/api/samiti', { user, body: action('mainnet-prepare', { groupId: group.id }) });
+    assert.equal(prepared.response.status, 200, JSON.stringify(prepared.data));
+    const intent = prepared.data.groups[0].contributionIntents[user];
+    const duplicate = await request('/api/samiti', { user, body: action('mainnet-prepare', { groupId: group.id }) });
+    assert.equal(duplicate.response.status, 400);
+    const check = () => request('/api/samiti', { user, body: action('mainnet-confirm', { groupId: group.id, hash }) });
+    const transfer = {
+      hash, from: sender.toAddress().toUserFriendlyAddress(), to: recipient, fromType: 2, toType: 0,
+      value: 100000, networkId: 24, flags: 0, blockNumber: 251, executionResult: true, proof,
+      recipientData: Buffer.from(intent.reference).toString('hex'),
+    };
+    for (const wrong of [
+      { recipientData: '0000' }, { value: 1 }, { networkId: 5 }, { to: wallet.toAddress().toUserFriendlyAddress() },
+      { proof: Buffer.concat([Buffer.from([1]), signed(wallet), signed(sender)]).toString('hex') },
+    ]) {
+      tx = { ...transfer, ...wrong };
+      assert.equal((await check()).response.status, 400);
+    }
+    tx = transfer;
+    assert.match((await check()).data.error, /finality/);
+    const beforeFinality = await request('/api/samiti', { user });
+    assert.equal(beforeFinality.data.groups[0].members[0].saved, 0);
+    headBatch = 9;
+    const results = await Promise.all([check(), check()]);
+    for (const result of results) {
+      assert.equal(result.response.status, 200, JSON.stringify(result.data));
+      assert.equal(result.data.groups[0].members[0].saved, 1);
+      assert.equal(result.data.groups[0].payments.length, 1);
+      assert.equal(result.data.groups[0].payments[0].status, 'confirmed');
+    }
+  } finally {
+    await new Promise<void>(resolve => rpc.close(() => resolve()));
+    if (oldRpc === undefined) delete process.env.NIMIQ_MAINNET_RPC_URL;
+    else process.env.NIMIQ_MAINNET_RPC_URL = oldRpc;
+  }
 });
 
 

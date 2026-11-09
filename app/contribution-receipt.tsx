@@ -2,7 +2,7 @@
 import { CheckCircle2, Sprout } from 'lucide-react';
 import { money } from './model';
 
-export type ContributionReceipt = { id: string; groupName: string; amount: number; period: string; at: string; saved: number; target: number };
+export type ContributionReceipt = { id: string; groupName: string; amount: number; period: string; at: string; saved: number; target: number; mainnet?: boolean };
 export function ContributionReceiptView({ receipt, done }: { receipt: ContributionReceipt; done: () => void }) {
   const progress = Math.min(100, receipt.saved / receipt.target * 100);
   return <div className="contribution-receipt">

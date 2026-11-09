@@ -29,7 +29,7 @@ export function createApp(store: SamitiStore, settings: Configuration) {
   app.get('/health', async (_req, res) => {
     try {
       await store.client.db(store.databaseName).command({ ping: 1, maxTimeMS: 3000 });
-      res.json({ status: 'ok', service: 'digital-samiti-api', database: 'connected', mode: 'demo' });
+      res.json({ status: 'ok', service: 'digital-samiti-api', database: 'connected' });
     } catch {
       res.status(503).json({ status: 'unavailable', service: 'digital-samiti-api' });
     }
@@ -70,6 +70,12 @@ export function createApp(store: SamitiStore, settings: Configuration) {
     }
     return guest.identity;
   }
+
+  app.post('/api/wallet-challenge', async (req, res) => {
+    const nonce = z.string().regex(/^[a-f0-9]{64}$/).parse(req.body?.nonce);
+    await store.consumeWalletChallenge(nonce);
+    res.json({ ok: true });
+  });
 
   app.get('/api/samiti', async (req, res) => {
     res.json(await store.state(await identity(req, res)));

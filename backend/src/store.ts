@@ -1,8 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { MongoClient, type Collection } from 'mongodb';
+import { MongoClient, MongoServerError, type Collection } from 'mongodb';
 import { z } from 'zod';
-import { type AppState, type Group, round, validAddress } from '../../app/model';
+import { type AppState, type Group, round, validReceivingWallet, groupInWorkspace, walletAddress } from '../../app/model';
 import { updateGroup } from '../../app/domain';
+import { changeMainnetContribution, isMainnetAction } from '../../app/mainnet-contribution';
 import { createGroupSchema } from '../../app/group-input';
 import { indiaDate, processAutoPay } from '../../app/autopay';
 
@@ -23,12 +24,14 @@ export class SamitiStore {
   readonly groups: Collection<GroupDocument>;
   readonly sessions: Collection<SessionDocument>;
   private owners: Collection<OwnerDocument>;
+  private walletChallenges: Collection<{ _id: string; expiresAt: Date }>;
 
   constructor(readonly client: MongoClient, readonly databaseName: string) {
     const db = client.db(databaseName);
     this.groups = db.collection<GroupDocument>('samiti_groups');
     this.sessions = db.collection<SessionDocument>('samiti_guest_sessions');
     this.owners = db.collection<OwnerDocument>('samiti_owners');
+    this.walletChallenges = db.collection('samiti_wallet_challenges');
   }
 
   async initialize() {
@@ -38,6 +41,18 @@ export class SamitiStore {
     await this.groups.createIndex({ 'group.members.id': 1 });
     await this.groups.createIndex({ 'group.visibility': 1 });
     await this.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    await this.walletChallenges.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+  }
+
+  async consumeWalletChallenge(nonce: string) {
+    try {
+      await this.walletChallenges.insertOne({ _id: nonce, expiresAt: new Date(Date.now() + 300000) });
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11000) {
+        throw new ApiError(409, 'This wallet challenge was already used.');
+      }
+      throw error;
+    }
   }
 
   async guest(cookie: string | undefined) {
@@ -59,12 +74,17 @@ export class SamitiStore {
 
   async state(identity: Identity): Promise<AppState> {
     const joined = await this.groups.find({ 'group.members.id': identity.id }).sort({ createdAt: 1, _id: 1 }).toArray();
-    const discoverable = await this.groups.find({ 'group.visibility': 'public' }).limit(100).toArray();
+    const demo = !walletAddress(identity.id);
+    const discoverable = identity.authenticated
+      ? await this.groups.find({ 'group.visibility': 'public', 'group.demo': demo ? { $ne: false } : false }).limit(100).toArray()
+      : [];
     return {
       user: identity,
-      groups: joined.map(({ group }) => {
+      groups: joined.filter(({ group }) => groupInWorkspace(group, identity.id)).map(({ group }) => {
         const { processed: _processed, ...visible } = group;
         visible.autoPay = group.autoPay?.[identity.id] ? { [identity.id]: group.autoPay[identity.id] } : {};
+        visible.contributionIntents = group.contributionIntents?.[identity.id]
+          ? { [identity.id]: group.contributionIntents[identity.id] } : {};
         return visible;
       }),
       publicGroups: discoverable.map(({ group }) => ({
@@ -96,7 +116,10 @@ export class SamitiStore {
           throw new ApiError(403, 'Demo Samitis are personal and private. Create an account to share a circle.');
         }
         const groupId = requestId!;
-        if (data.wallet && !validAddress(data.wallet)) throw new ApiError(400, 'Enter a valid Nimiq address.');
+        const sender = walletAddress(identity.id);
+        const demo = !sender;
+        if (sender && !validReceivingWallet(data.wallet, sender)) throw new ApiError(400, 'Enter a valid receiving address separate from your Nimiq Pay wallet.');
+        if (demo) data.wallet = '';
         if (round(data.monthly) !== data.monthly) throw new ApiError(400, 'Use up to 2 decimals for contributions.');
         await this.client.withSession(session => session.withTransaction(async () => {
           const existing = await this.groups.findOne({ _id: groupId }, { session });
@@ -110,7 +133,7 @@ export class SamitiStore {
           if (!count || count.groups > 25) throw new ApiError(400, 'You can create up to 25 Samitis.');
           const group: Group = {
             ...data, id: groupId, owner: identity.id, invite: randomUUID().replace(/-/g, '').toUpperCase(),
-            demo: true, guestOnly: !identity.authenticated, members: [{ id: identity.id, name: identity.name, saved: 0, interest: 0 }],
+            demo, guestOnly: !identity.authenticated, members: [{ id: identity.id, name: identity.name, saved: 0, interest: 0 }],
             loans: [], activity: [], created: new Date().toISOString(),
           };
           await this.groups.insertOne(this.document(group), { session });
@@ -126,6 +149,7 @@ export class SamitiStore {
         if (!row) throw new ApiError(404, 'Invite code or public Samiti not found.');
         if (row.group.guestOnly) throw new ApiError(403, 'This Samiti belongs to a personal demo.');
         await this.mutate(row._id, group => {
+          if (!groupInWorkspace(group, identity.id)) throw new ApiError(403, 'This Samiti belongs to a different workspace.');
           if (group.members.some(member => member.id === identity.id)) return false;
           if (group.members.length >= 100) throw new ApiError(400, 'This Samiti has reached its 100-member limit.');
           group.members.push({ id: identity.id, name: identity.name, saved: 0, interest: 0 });
@@ -136,10 +160,13 @@ export class SamitiStore {
       }
       default: {
         const groupId = identifier.parse(input.groupId);
-        await this.mutate(groupId, group => {
-          if (!group.members.some(member => member.id === identity.id)) throw new ApiError(403, 'You are not a member of this Samiti.');
+        await this.mutate(groupId, async group => {
+          if (!groupInWorkspace(group, identity.id) || !group.members.some(member => member.id === identity.id)) throw new ApiError(403, 'You are not a member of this Samiti.');
           if (group.processed?.includes(requestId!)) return false;
-          try { updateGroup(group, identity.id, input.action, input); }
+          try {
+            if (isMainnetAction(input.action)) await changeMainnetContribution(group, identity.id, input.action, input);
+            else updateGroup(group, identity.id, input.action, input);
+          }
           catch (error) { throw new ApiError(400, error instanceof Error ? error.message : 'Unable to save this change.'); }
           group.processed = [...(group.processed ?? []).slice(-999), requestId!];
           group.activity = group.activity.slice(0, 1000);
@@ -150,11 +177,11 @@ export class SamitiStore {
     return this.state(identity);
   }
 
-  private async mutate(id: string, change: (group: StoredGroup) => boolean) {
+  private async mutate(id: string, change: (group: StoredGroup) => boolean | Promise<boolean>) {
     for (let attempt = 0; attempt < 4; attempt++) {
       const row = await this.groups.findOne({ _id: id });
       if (!row) throw new ApiError(404, 'Samiti not found.');
-      if (!change(row.group)) return;
+      if (!await change(row.group)) return;
       const saved = await this.groups.updateOne({ _id: id, version: row.version }, {
         $set: { group: row.group }, $inc: { version: 1 },
       });

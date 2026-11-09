@@ -3,7 +3,9 @@ import { useState, useRef, useEffect } from 'react';
 import { remainingInstallments } from './progress-model';
 import { Check, X, Clock3, CalendarDays, ShieldCheck, ChevronDown, CheckCheck } from 'lucide-react';
 import { Group, Loan, loanTotal, money } from './model';
-type Props = { loan: Loan & { group: Group }; userId: string; busy: boolean; action: (a: string, p: Record<string, unknown>, message: string, close: boolean) => Promise<boolean> };
+import type { SamitiAction } from './model';
+
+type Props = { loan: Loan & { group: Group }; userId: string; busy: boolean; action: SamitiAction };
 export function LoanCard({ loan: l, userId, busy, action }: Props) {
   const [review, setReview] = useState<boolean | null>(null);
   const [voteError, setVoteError] = useState('');
